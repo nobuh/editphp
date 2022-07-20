@@ -25,15 +25,15 @@ function main(): void
 
     enableRawMode();
 
-    $dummy = null;
-    $arr = array($stdin);
-    if (stream_select($arr, $dummy, $dummy, 1) === false) {
-        \fwrite(STDERR, "Unable to set timeout on STDIN" . PHP_EOL);
-        exit(1);
-    }
-
     while (1) {
-        $c = 0;
+
+        $dummy = null;
+        $arr = array($stdin);
+            if (stream_select($arr, $dummy, $dummy, 0, 800) === false) {
+            fwrite(STDERR, "Unable to select timeout on the stream." . PHP_EOL);
+            exit(1);
+        }  
+
         $c = fread($stdin, 1);
         if (IntlChar::iscntrl($c)) {
             printf("%d\r\n", ord($c));
@@ -44,6 +44,7 @@ function main(): void
             break;
         }
     }
+
     exit(0);
 }
 
