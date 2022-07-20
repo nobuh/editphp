@@ -25,17 +25,21 @@ function main(): void
 
     enableRawMode();
 
+    // stream_set_blocking($stdin, false);
+
     while (1) {
 
-        $dummy = null;
-        $arr = array($stdin);
-            if (stream_select($arr, $dummy, $dummy, 0, 800) === false) {
-            fwrite(STDERR, "Unable to select timeout on the stream." . PHP_EOL);
-            exit(1);
-        }  
+        // $dummy = null;
+        // $arr = array($stdin);
+        //     if (stream_select($arr, $dummy, $dummy, 1, 0) === false) {
+        //     fwrite(STDERR, "Unable to select timeout on the stream" . PHP_EOL);
+        //     exit(1);
+        // }  
 
         $c = fread($stdin, 1);
-        if (IntlChar::iscntrl($c)) {
+        if (ord($c) === 0) {
+            echo '.';
+        } else if (IntlChar::iscntrl($c)) {
             printf("%d\r\n", ord($c));
         } else {
             printf("%d ('%s')\r\n", ord($c), $c);
