@@ -1,7 +1,11 @@
 <?php
 
-function enableRawMode(): void
+function enableRawMode(): mixed
 {
+    $stdin = fopen('php://stdin', 'r');
+    if ($stdin === false) die("fopen");
+    if (!stream_set_blocking($stdin, false)) die("stream_set_blocking");
+
     exec('stty -echo -icanon');
     exec('stty -isig');     // disable CTRL-C, Z
     exec('stty -ixon');     // disable CTRL-S, Q
@@ -12,6 +16,8 @@ function enableRawMode(): void
     exec('stty cs8');
   
     register_shutdown_function('disableRawMode');
+
+    return $stdin;
 }
 
 function disableRawMode(): void
@@ -21,25 +27,18 @@ function disableRawMode(): void
 
 function main(): void 
 {
-    $stdin = fopen('php://stdin', 'r');
-
-    enableRawMode();
-
-    // stream_set_blocking($stdin, false);
+    $input = enableRawMode();
 
     while (1) {
-
-        // $dummy = null;
-        // $arr = array($stdin);
-        //     if (stream_select($arr, $dummy, $dummy, 1, 0) === false) {
-        //     fwrite(STDERR, "Unable to select timeout on the stream" . PHP_EOL);
-        //     exit(1);
-        // }  
-
-        $c = fread($stdin, 1);
-        if (ord($c) === 0) {
-            echo '.';
-        } else if (IntlChar::iscntrl($c)) {
+        $in = array($input);
+        $out = $err = null;
+        $seconds = 1;
+        if (stream_select($in, $out, $err, $seconds) === false) die("Unalbe to selecton stdin\n");
+        $bytes = 1;
+        $c = fread($input, $bytes);
+        if ($c === false) die("fread");
+        
+        if (IntlChar::iscntrl($c)) {
             printf("%d\r\n", ord($c));
         } else {
             printf("%d ('%s')\r\n", ord($c), $c);
