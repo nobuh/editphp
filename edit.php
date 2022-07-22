@@ -1,5 +1,10 @@
 <?php
 
+function CTRL_KEY(string $k): int
+{
+    return (string)(ord($k) & 0x1f);
+}
+
 function enableRawMode(): mixed
 {
     $stdin = fopen('php://stdin', 'r');
@@ -43,9 +48,7 @@ function main(): void
         } else {
             printf("%d ('%s')\r\n", ord($c), $c);
         }
-        if ($c === 'q') {
-            break;
-        }
+        if (ord($c) === CTRL_KEY('q')) break;
     }
 
     exit(0);
