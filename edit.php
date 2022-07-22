@@ -2,7 +2,7 @@
 
 function CTRL_KEY(string $k): int
 {
-    return (string)(ord($k) & 0x1f);
+    return ord($k) & 0x1f;
 }
 
 function enableRawMode(): mixed
