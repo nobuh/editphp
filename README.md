@@ -4,5 +4,5 @@
 
 ## Requirements
 - Linux
+- php 8.1
 - stty
-- php8.1-intl
