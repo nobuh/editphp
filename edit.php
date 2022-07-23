@@ -27,6 +27,9 @@ function enableRawMode(): mixed
 
 function disableRawMode(): void
 {
+    fwrite(STDOUT, "\x1b[2J", 4);
+    fwrite(STDOUT, "\x1b[H", 3);
+
     exec('stty sane');
 }
 
@@ -50,6 +53,8 @@ function editorProcessKeypress(mixed $input): void
 
     switch (ord($c)) {
         case (CTRL_KEY('q')):
+            fwrite(STDOUT, "\x1b[2J", 4);
+            fwrite(STDOUT, "\x1b[H", 3);
             exit(0);
             break;
     }
