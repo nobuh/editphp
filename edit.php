@@ -30,25 +30,37 @@ function disableRawMode(): void
     exec('stty sane');
 }
 
+function editorReadKey(mixed $input): string
+{
+    $in = array($input);
+    $out = $err = null;
+    $seconds = 1;
+    if (stream_select($in, $out, $err, $seconds) === false) die("Unalbe to selecton stdin\n");
+
+    $bytes = 1;
+    $c = fread($input, $bytes);
+    if ($c === false) die("fread");
+
+    return $c;
+}
+
+function editorProcessKeypress(mixed $input): void
+{
+    $c = editorReadKey($input);
+
+    switch (ord($c)) {
+        case (CTRL_KEY('q')):
+            exit(0);
+            break;
+    }
+}
+
 function main(): void 
 {
     $input = enableRawMode();
 
     while (1) {
-        $in = array($input);
-        $out = $err = null;
-        $seconds = 1;
-        if (stream_select($in, $out, $err, $seconds) === false) die("Unalbe to selecton stdin\n");
-        $bytes = 1;
-        $c = fread($input, $bytes);
-        if ($c === false) die("fread");
-        
-        if (IntlChar::iscntrl($c)) {
-            printf("%d\r\n", ord($c));
-        } else {
-            printf("%d ('%s')\r\n", ord($c), $c);
-        }
-        if (ord($c) === CTRL_KEY('q')) break;
+        editorProcessKeypress($input);
     }
 
     exit(0);
