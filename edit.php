@@ -55,11 +55,17 @@ function editorProcessKeypress(mixed $input): void
     }
 }
 
+function editorRefreshScreen(): void
+{
+    fwrite(STDOUT, "\x1b[2J", 4);
+}
+
 function main(): void 
 {
     $input = enableRawMode();
 
     while (1) {
+        editorRefreshScreen();
         editorProcessKeypress($input);
     }
 
