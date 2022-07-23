@@ -58,6 +58,7 @@ function editorProcessKeypress(mixed $input): void
 function editorRefreshScreen(): void
 {
     fwrite(STDOUT, "\x1b[2J", 4);
+    fwrite(STDOUT, "\x1b[H", 3);
 }
 
 function main(): void 
