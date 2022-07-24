@@ -120,6 +120,12 @@ function editorDrawRows(abuf $ab)
             $welcome = sprintf("Kilo editor -- version %s", KILO_VERSION);
             $welcomelen = strlen($welcome);
             if ($welcomelen > $E->screencols) $welcomelen = $E->screencols;
+            $padding = (int)floor(($E->screencols - $welcomelen) / 2);
+            if ($padding) {
+              abAppend($ab, "~", 1);
+              $padding--;
+            }
+            while ($padding--) abAppend($ab, " ", 1);
             abAppend($ab, $welcome, $welcomelen);
         } else {
             abAppend($ab, "~", 1);
