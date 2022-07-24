@@ -89,7 +89,11 @@ function editorDrawRows()
 {
     global $E;
     for ($y = 0; $y < $E->screenrows; $y++) {
-      fwrite(STDOUT, "~\r\n", 3);
+      fwrite(STDOUT, "~", 1);
+
+      if ($y < $E->screenrows - 1) {
+        fwrite(STDOUT, "\r\n", 2);
+      }
     }
 }
   
