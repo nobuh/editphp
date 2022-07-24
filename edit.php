@@ -3,11 +3,15 @@
 class editorConfig
 {
     public mixed $stdin;
+    public int $screenrows;
+    public int $screencols;
 
     function __construct()
     {
         $this->stdin = fopen('php://stdin', 'r');    
         if ($this->stdin === false) die("fopen");
+        $this->screenrows = 0;
+        $this->screencols = 0;
     }
 }
 $E = new editorConfig();
@@ -57,6 +61,16 @@ function editorReadKey(): string
     return $c;
 }
 
+function getWindowSize(int &$rows, int &$cols): int {
+    if (exec('stty size', $output, $result) === false) {
+        return -1;
+    }
+    $size = explode(' ', $output[0]);
+    $rows = $size[0];
+    $cols = $size[1];
+    return 0;
+}
+
 function editorProcessKeypress(): void
 {
     global $E;
@@ -71,8 +85,10 @@ function editorProcessKeypress(): void
     }
 }
 
-function editorDrawRows() {
-    for ($y = 0; $y < 24; $y++) {
+function editorDrawRows() 
+{
+    global $E;
+    for ($y = 0; $y < $E->screenrows; $y++) {
       fwrite(STDOUT, "~\r\n", 3);
     }
 }
@@ -85,9 +101,16 @@ function editorRefreshScreen(): void
     fwrite(STDOUT, "\x1b[H", 3);
 }
 
+function initEditor(): void 
+{
+    global $E;
+    if (getWindowSize($E->screenrows, $E->screencols) == -1) die("getWindowSize");
+}
+  
 function main(): void 
 {
     enableRawMode();
+    initEditor();
 
     while (1) {
         editorRefreshScreen();
