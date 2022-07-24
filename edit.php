@@ -1,15 +1,26 @@
 <?php
 
+class editorConfig
+{
+    public mixed $stdin;
+
+    function __construct()
+    {
+        $this->stdin = fopen('php://stdin', 'r');    
+        if ($this->stdin === false) die("fopen");
+    }
+}
+$E = new editorConfig();
+
 function CTRL_KEY(string $k): int
 {
     return ord($k) & 0x1f;
 }
 
-function enableRawMode(): mixed
+function enableRawMode(): void
 {
-    $stdin = fopen('php://stdin', 'r');
-    if ($stdin === false) die("fopen");
-    if (!stream_set_blocking($stdin, false)) die("stream_set_blocking");
+    global $E;
+    if (!stream_set_blocking($E->stdin, false)) die("stream_set_blocking");
     
     exec('stty -echo -icanon');
     exec('stty -isig');     // disable CTRL-C, Z
@@ -21,8 +32,6 @@ function enableRawMode(): mixed
     exec('stty cs8');
   
     register_shutdown_function('disableRawMode');
-
-    return $stdin;
 }
 
 function disableRawMode(): void
@@ -33,23 +42,25 @@ function disableRawMode(): void
     exec('stty sane');
 }
 
-function editorReadKey(mixed $input): string
+function editorReadKey(): string
 {
-    $in = array($input);
+    global $E;
+    $in = array($E->stdin);
     $out = $err = null;
     $seconds = 1;
     if (stream_select($in, $out, $err, $seconds) === false) die("Unalbe to selecton stdin\n");
 
     $bytes = 1;
-    $c = fread($input, $bytes);
+    $c = fread($E->stdin, $bytes);
     if ($c === false) die("fread");
 
     return $c;
 }
 
-function editorProcessKeypress(mixed $input): void
+function editorProcessKeypress(): void
 {
-    $c = editorReadKey($input);
+    global $E;
+    $c = editorReadKey();
 
     switch (ord($c)) {
         case (CTRL_KEY('q')):
@@ -76,11 +87,11 @@ function editorRefreshScreen(): void
 
 function main(): void 
 {
-    $input = enableRawMode();
+    enableRawMode();
 
     while (1) {
         editorRefreshScreen();
-        editorProcessKeypress($input);
+        editorProcessKeypress();
     }
 
     exit(0);
