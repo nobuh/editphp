@@ -1,5 +1,7 @@
 <?php
 
+const KILO_VERSION = "0.0.0";
+
 class editorConfig
 {
     public mixed $stdin;
@@ -114,12 +116,19 @@ function editorDrawRows(abuf $ab)
 {
     global $E;
     for ($y = 0; $y < $E->screenrows; $y++) {
-        abAppend($ab, "~", 1);
+        if ($y === (int)floor($E->screenrows / 3)) {
+            $welcome = sprintf("Kilo editor -- version %s", KILO_VERSION);
+            $welcomelen = strlen($welcome);
+            if ($welcomelen > $E->screencols) $welcomelen = $E->screencols;
+            abAppend($ab, $welcome, $welcomelen);
+        } else {
+            abAppend($ab, "~", 1);
+        }
 
         abAppend($ab, "\x1b[K", 3);
-      if ($y < $E->screenrows - 1) {
-        abAppend($ab, "\r\n", 2);
-      }
+        if ($y < $E->screenrows - 1) {
+            abAppend($ab, "\r\n", 2);
+        }
     }
 }
   
