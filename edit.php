@@ -16,6 +16,31 @@ class editorConfig
 }
 $E = new editorConfig();
 
+
+// append buffer
+class abuf
+{
+    public string $b;
+    public int $len;
+
+    function __construct()
+    {
+        $this->b = '';
+        $this->len = 0;
+    }
+}
+
+function abAppend(abuf $ab, string $s, int $len)
+{
+    $ab->b .= $s;
+    $ab->len += $len;
+}
+
+function abFree(abuf $ab)
+{
+    $ab = null;
+}
+
 function CTRL_KEY(string $k): int
 {
     return ord($k) & 0x1f;
@@ -35,7 +60,7 @@ function enableRawMode(): void
     exec('stty -brkint -inpck -istrip');    // disable misc
     exec('stty cs8');
   
-    register_shutdown_function('disableRawMode');
+//    register_shutdown_function('disableRawMode');
 }
 
 function disableRawMode(): void
@@ -85,24 +110,31 @@ function editorProcessKeypress(): void
     }
 }
 
-function editorDrawRows() 
+function editorDrawRows(abuf $ab) 
 {
     global $E;
     for ($y = 0; $y < $E->screenrows; $y++) {
-      fwrite(STDOUT, "~", 1);
+        abAppend($ab, "~", 1);
 
       if ($y < $E->screenrows - 1) {
-        fwrite(STDOUT, "\r\n", 2);
+        abAppend($ab, "\r\n", 2);
       }
     }
 }
   
 function editorRefreshScreen(): void
 {
-    fwrite(STDOUT, "\x1b[2J", 4);
-    fwrite(STDOUT, "\x1b[H", 3);
-    editorDrawRows();
-    fwrite(STDOUT, "\x1b[H", 3);
+    $ab = new abuf();
+
+    abAppend($ab, "\x1b[2J", 4);
+    abAppend($ab, "\x1b[H", 3);
+
+    editorDrawRows($ab);
+
+    abAppend($ab, "\x1b[H", 3);
+
+    fwrite(STDOUT, $ab->b, $ab->len);
+    abFree($ab);
 }
 
 function initEditor(): void 
