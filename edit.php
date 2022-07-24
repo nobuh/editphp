@@ -10,7 +10,7 @@ function enableRawMode(): mixed
     $stdin = fopen('php://stdin', 'r');
     if ($stdin === false) die("fopen");
     if (!stream_set_blocking($stdin, false)) die("stream_set_blocking");
-
+    
     exec('stty -echo -icanon');
     exec('stty -isig');     // disable CTRL-C, Z
     exec('stty -ixon');     // disable CTRL-S, Q
@@ -60,9 +60,17 @@ function editorProcessKeypress(mixed $input): void
     }
 }
 
+function editorDrawRows() {
+    for ($y = 0; $y < 24; $y++) {
+      fwrite(STDOUT, "~\r\n", 3);
+    }
+}
+  
 function editorRefreshScreen(): void
 {
     fwrite(STDOUT, "\x1b[2J", 4);
+    fwrite(STDOUT, "\x1b[H", 3);
+    editorDrawRows();
     fwrite(STDOUT, "\x1b[H", 3);
 }
 
