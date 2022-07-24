@@ -4,14 +4,18 @@ const KILO_VERSION = "0.0.0";
 
 class editorConfig
 {
-    public mixed $stdin;
+    public int $cx;
+    public int $cy;
     public int $screenrows;
     public int $screencols;
+    public mixed $stdin;
 
     function __construct()
     {
         $this->stdin = fopen('php://stdin', 'r');    
         if ($this->stdin === false) die("fopen");
+        $this->cx = 10;
+        $this->cy = 10;
         $this->screenrows = 0;
         $this->screencols = 0;
     }
@@ -140,14 +144,16 @@ function editorDrawRows(abuf $ab)
   
 function editorRefreshScreen(): void
 {
+    global $E;
     $ab = new abuf();
 
     abAppend($ab, "\x1b[?25l", 6);
     abAppend($ab, "\x1b[H", 3);
 
     editorDrawRows($ab);
+    $buf = sprintf("\x1b[%d;%dH", $E->cy + 1, $E->cx + 1);
+    abAppend($ab, $buf, strlen($buf));
 
-    abAppend($ab, "\x1b[H", 3);
     abAppend($ab, "\x1b[?25h", 6);
 
     fwrite(STDOUT, $ab->b, $ab->len);
