@@ -60,7 +60,7 @@ function enableRawMode(): void
     exec('stty -brkint -inpck -istrip');    // disable misc
     exec('stty cs8');
   
-//    register_shutdown_function('disableRawMode');
+    register_shutdown_function('disableRawMode');
 }
 
 function disableRawMode(): void
@@ -126,12 +126,14 @@ function editorRefreshScreen(): void
 {
     $ab = new abuf();
 
+    abAppend($ab, "\x1b[?25l", 6);
     abAppend($ab, "\x1b[2J", 4);
     abAppend($ab, "\x1b[H", 3);
 
     editorDrawRows($ab);
 
     abAppend($ab, "\x1b[H", 3);
+    abAppend($ab, "\x1b[?25h", 6);
 
     fwrite(STDOUT, $ab->b, $ab->len);
     abFree($ab);
