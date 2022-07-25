@@ -56,8 +56,10 @@ const ARROW_LEFT    = 1000;
 const ARROW_RIGHT   = 1001;
 const ARROW_UP      = 1002;
 const ARROW_DOWN    = 1003;
-const PAGE_UP       = 1004;
-const PAGE_DOWN     = 1005;
+const HOME_KEY      = 1004;
+const END_KEY       = 1005;
+const PAGE_UP       = 1006;
+const PAGE_DOWN     = 1007;
 
 function enableRawMode(): void
 {
@@ -110,8 +112,12 @@ function editorReadKey(): int
                 $seq[2] = fread($E->stdin, $bytes);
                 if ($seq[2] === '~') {
                     switch ($seq[1]) {
+                        case '1': return HOME_KEY;
+                        case '4': return END_KEY;
                         case '5': return PAGE_UP;
                         case '6': return PAGE_DOWN;
+                        case '7': return HOME_KEY;
+                        case '8': return END_KEY;
                     }
                 }                    
             } else {
@@ -119,10 +125,18 @@ function editorReadKey(): int
                     case 'A': return ARROW_UP;
                     case 'B': return ARROW_DOWN;
                     case 'C': return ARROW_RIGHT;
-                    case 'D': return ARROW_LEFT;     
+                    case 'D': return ARROW_LEFT;
+                    case 'H': return HOME_KEY;
+                    case 'F': return END_KEY;    
                 }
             }
+        } else if ($seq[0] === 'O') {
+            switch ($seq[1]) {
+                case 'H': return HOME_KEY;
+                case 'F': return END_KEY;
+            }
         }
+
         return 0x1b;        
     } else {
         return ord($c);
@@ -176,6 +190,12 @@ function editorProcessKeypress(): void
             fwrite(STDOUT, "\x1b[2J", 4);
             fwrite(STDOUT, "\x1b[H", 3);
             exit(0);
+            break;
+        case HOME_KEY:
+            $E->cx = 0;
+            break;
+        case END_KEY:
+            $E->cx = $E->screencols - 1;
             break;
         case PAGE_UP:
         case PAGE_DOWN:
