@@ -80,6 +80,7 @@ function disableRawMode(): void
 function editorReadKey(): string
 {
     global $E;
+
     $in = array($E->stdin);
     $out = $err = null;
     $seconds = 1;
@@ -89,7 +90,25 @@ function editorReadKey(): string
     $c = fread($E->stdin, $bytes);
     if ($c === false) die("fread");
 
-    return $c;
+    if (ord($c) === 0x1b) {
+        $seq = [];
+        if (stream_select($in, $out, $err, $seconds) === false) die("Unalbe to selecton stdin\n");
+        $seq[0] = fread($E->stdin, $bytes);
+        if (stream_select($in, $out, $err, $seconds) === false) die("Unalbe to selecton stdin\n");
+        $seq[1] = fread($E->stdin, $bytes);
+        if ($seq[0] === false || $seq[1] === false) return '\x1b';
+        if ($seq[0] === '[') {
+            switch ($seq[1]) {
+                case 'A': return 'w';
+                case 'B': return 's';
+                case 'C': return 'd';
+                case 'D': return 'a';     
+            }
+        }
+        return '\x1b';        
+    } else {
+        return $c;
+    }
 }
 
 function getWindowSize(int &$rows, int &$cols): int {
