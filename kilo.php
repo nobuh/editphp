@@ -52,6 +52,11 @@ function CTRL_KEY(string $k): int
     return ord($k) & 0x1f;
 }
 
+const ARROW_LEFT    = 1000;
+const ARROW_RIGHT   = 1001;
+const ARROW_UP      = 1002;
+const ARROW_DOWN    = 1003;
+
 function enableRawMode(): void
 {
     global $E;
@@ -77,7 +82,7 @@ function disableRawMode(): void
     exec('stty sane');
 }
 
-function editorReadKey(): string
+function editorReadKey(): int
 {
     global $E;
 
@@ -96,18 +101,18 @@ function editorReadKey(): string
         $seq[0] = fread($E->stdin, $bytes);
         if (stream_select($in, $out, $err, $seconds) === false) die("Unalbe to selecton stdin\n");
         $seq[1] = fread($E->stdin, $bytes);
-        if ($seq[0] === false || $seq[1] === false) return '\x1b';
+        if ($seq[0] === false || $seq[1] === false) return 0x1b;
         if ($seq[0] === '[') {
             switch ($seq[1]) {
-                case 'A': return 'w';
-                case 'B': return 's';
-                case 'C': return 'd';
-                case 'D': return 'a';     
+                case 'A': return ARROW_UP;
+                case 'B': return ARROW_DOWN;
+                case 'C': return ARROW_RIGHT;
+                case 'D': return ARROW_LEFT;     
             }
         }
-        return '\x1b';        
+        return 0x1b;        
     } else {
-        return $c;
+        return ord($c);
     }
 }
 
@@ -121,20 +126,20 @@ function getWindowSize(int &$rows, int &$cols): int {
     return 0;
 }
 
-function editorMoveCursor(string $key): void 
+function editorMoveCursor(int $key): void 
 {
     global $E;
     switch ($key) {
-      case 'a':
+      case ARROW_LEFT:
         $E->cx--;
         break;
-      case 'd':
+      case ARROW_RIGHT:
         $E->cx++;
         break;
-      case 'w':
+      case ARROW_UP:
         $E->cy--;
         break;
-      case 's':
+      case ARROW_DOWN:
         $E->cy++;
         break;
     }
@@ -145,16 +150,16 @@ function editorProcessKeypress(): void
     global $E;
     $c = editorReadKey();
 
-    switch (ord($c)) {
+    switch ($c) {
         case CTRL_KEY('q'):
             fwrite(STDOUT, "\x1b[2J", 4);
             fwrite(STDOUT, "\x1b[H", 3);
             exit(0);
             break;
-        case ord('w');
-        case ord('a');
-        case ord('s');
-        case ord('d');
+        case ARROW_UP:
+        case ARROW_LEFT:
+        case ARROW_DOWN:
+        case ARROW_RIGHT:
             editorMoveCursor($c);
     }
 }
