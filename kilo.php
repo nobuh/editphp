@@ -102,17 +102,41 @@ function getWindowSize(int &$rows, int &$cols): int {
     return 0;
 }
 
+function editorMoveCursor(string $key): void 
+{
+    global $E;
+    switch ($key) {
+      case 'a':
+        $E->cx--;
+        break;
+      case 'd':
+        $E->cx++;
+        break;
+      case 'w':
+        $E->cy--;
+        break;
+      case 's':
+        $E->cy++;
+        break;
+    }
+  }
+
 function editorProcessKeypress(): void
 {
     global $E;
     $c = editorReadKey();
 
     switch (ord($c)) {
-        case (CTRL_KEY('q')):
+        case CTRL_KEY('q'):
             fwrite(STDOUT, "\x1b[2J", 4);
             fwrite(STDOUT, "\x1b[H", 3);
             exit(0);
             break;
+        case ord('w');
+        case ord('a');
+        case ord('s');
+        case ord('d');
+            editorMoveCursor($c);
     }
 }
 
