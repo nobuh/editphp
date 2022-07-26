@@ -12,6 +12,7 @@ class editorConfig
 {
     public int $cx;
     public int $cy;
+    public int $rowoff;
     public int $screenrows;
     public int $screencols;
     public int $numrows;
@@ -24,6 +25,7 @@ class editorConfig
         if ($this->stdin === false) die("fopen");
         $this->cx = 0;
         $this->cy = 0;
+        $this->rowoff = 0;
         $this->screenrows = 0;
         $this->screencols = 0;
         $this->numrows = 0;
@@ -210,7 +212,7 @@ function editorMoveCursor(int $key): void
         }
         break;
       case ARROW_DOWN:
-        if ($E->cy !== $E->screenrows - 1) {
+        if ($E->cy < $E->numrows) {
             $E->cy++;
         }
         break;
@@ -253,20 +255,32 @@ function editorProcessKeypress(): void
     }
 }
 
+function editorScroll(): void 
+{
+    global $E;
+
+    if ($E->cy < $E->rowoff) {
+        $E->rowoff = $E->cy;
+    }
+    if ($E->cy >= $E->rowoff + $E->screenrows) {
+        $E->rowoff = $E->cy - $E->screenrows + 1;
+    }
+}
+
 function editorDrawRows(abuf $ab) 
 {
     global $E;
     for ($y = 0; $y < $E->screenrows; $y++) {
-
-        if ($y >= (int)floor($E->numrows)) {
+        $filerow = $y + $E->rowoff;
+        if ($filerow >= $E->numrows) {
             if ($E->numrows === 0 && $y === (int)floor($E->screenrows / 3)) {
                 $welcome = sprintf("Kilo editor -- version %s", KILO_VERSION);
                 $welcomelen = strlen($welcome);
                 if ($welcomelen > $E->screencols) $welcomelen = $E->screencols;
                 $padding = (int)floor(($E->screencols - $welcomelen) / 2);
                 if ($padding) {
-                abAppend($ab, "~", 1);
-                $padding--;
+                    abAppend($ab, "~", 1);
+                    $padding--;
                 }
                 while ($padding--) abAppend($ab, " ", 1);
                 abAppend($ab, $welcome, $welcomelen);
@@ -274,9 +288,9 @@ function editorDrawRows(abuf $ab)
                 abAppend($ab, "~", 1);
             }
         } else {
-            $len = $E->row[$y]->size;
+            $len = $E->row[$filerow]->size;
             if ($len > $E->screencols) $len = $E->screencols;
-            abAppend($ab, $E->row[$y]->chars, $len);
+            abAppend($ab, $E->row[$filerow]->chars, $len);
         }
 
         abAppend($ab, "\x1b[K", 3);
@@ -289,16 +303,21 @@ function editorDrawRows(abuf $ab)
 function editorRefreshScreen(): void
 {
     global $E;
+
+    editorScroll();
+
     $ab = new abuf();
 
     abAppend($ab, "\x1b[?25l", 6);
     abAppend($ab, "\x1b[H", 3);
 
     editorDrawRows($ab);
-    $buf = sprintf("\x1b[%d;%dH", $E->cy + 1, $E->cx + 1);
+    $buf = sprintf("\x1b[%d;%dH", ($E->cy - $E->rowoff) + 1, $E->cx + 1);
     abAppend($ab, $buf, strlen($buf));
 
     abAppend($ab, "\x1b[?25h", 6);
+
+    var_dump($ab);
 
     fwrite(STDOUT, $ab->b, $ab->len);
     abFree($ab);
