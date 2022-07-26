@@ -15,7 +15,7 @@ class editorConfig
     public int $screenrows;
     public int $screencols;
     public int $numrows;
-    public mixed $row;
+    public array $row;
     public mixed $stdin;
 
     function __construct()
@@ -27,7 +27,7 @@ class editorConfig
         $this->screenrows = 0;
         $this->screencols = 0;
         $this->numrows = 0;
-        $this->row = new erow();
+        $this->row = [];
     }
 }
 $E = new editorConfig();
@@ -164,6 +164,17 @@ function getWindowSize(int &$rows, int &$cols): int {
     return 0;
 }
 
+function editorAppendRow(string $s, int $len): void
+{
+    global $E;
+
+    $at = $E->numrows;
+    $E->row[$at] = new erow();
+    $E->row[$at]->size = $len;
+    $E->row[$at]->chars = $s;
+    $E->numrows++;
+}
+
 function editorOpen(string $filename): void 
 {
     global $E;
@@ -174,9 +185,7 @@ function editorOpen(string $filename): void
     if ($line === false) die("fgets");
 
     $line = rtrim($line);
-    $E->row->size = strlen($line);
-    $E->row->chars = $line;
-    $E->numrows = 1;
+    editorAppendRow($line, strlen($line));
 
     fclose($fp);
 }
@@ -265,9 +274,9 @@ function editorDrawRows(abuf $ab)
                 abAppend($ab, "~", 1);
             }
         } else {
-            $len = $E->row->size;
+            $len = $E->row[$y]->size;
             if ($len > $E->screencols) $len = $E->screencols;
-            abAppend($ab, $E->row->chars, $len);
+            abAppend($ab, $E->row[$y]->chars, $len);
         }
 
         abAppend($ab, "\x1b[K", 3);
