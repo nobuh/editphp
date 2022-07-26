@@ -2,26 +2,35 @@
 
 const KILO_VERSION = "0.0.0";
 
+class erow 
+{
+    public int $size;
+    public string $chars;
+}
+
 class editorConfig
 {
     public int $cx;
     public int $cy;
     public int $screenrows;
     public int $screencols;
+    public int $numrows;
+    public mixed $row;
     public mixed $stdin;
 
     function __construct()
     {
         $this->stdin = fopen('php://stdin', 'r');    
         if ($this->stdin === false) die("fopen");
-        $this->cx = 10;
-        $this->cy = 10;
+        $this->cx = 0;
+        $this->cy = 0;
         $this->screenrows = 0;
         $this->screencols = 0;
+        $this->numrows = 0;
+        $this->row = new erow();
     }
 }
 $E = new editorConfig();
-
 
 // append buffer
 class abuf
@@ -56,10 +65,11 @@ const ARROW_LEFT    = 1000;
 const ARROW_RIGHT   = 1001;
 const ARROW_UP      = 1002;
 const ARROW_DOWN    = 1003;
-const HOME_KEY      = 1004;
-const END_KEY       = 1005;
-const PAGE_UP       = 1006;
-const PAGE_DOWN     = 1007;
+const DEL_KEY       = 1004;
+const HOME_KEY      = 1005;
+const END_KEY       = 1006;
+const PAGE_UP       = 1007;
+const PAGE_DOWN     = 1008;
 
 function enableRawMode(): void
 {
@@ -113,6 +123,7 @@ function editorReadKey(): int
                 if ($seq[2] === '~') {
                     switch ($seq[1]) {
                         case '1': return HOME_KEY;
+                        case '3': return DEL_KEY;
                         case '4': return END_KEY;
                         case '5': return PAGE_UP;
                         case '6': return PAGE_DOWN;
@@ -151,6 +162,23 @@ function getWindowSize(int &$rows, int &$cols): int {
     $rows = $size[0];
     $cols = $size[1];
     return 0;
+}
+
+function editorOpen(string $filename): void 
+{
+    global $E;
+
+    $fp = fopen($filename, 'r');
+    if ($fp === false) die("fopen");
+    $line = fgets($fp);
+    if ($line === false) die("fgets");
+
+    $line = rtrim($line);
+    $E->row->size = strlen($line);
+    $E->row->chars = $line;
+    $E->numrows = 1;
+
+    fclose($fp);
 }
 
 function editorMoveCursor(int $key): void 
@@ -220,19 +248,26 @@ function editorDrawRows(abuf $ab)
 {
     global $E;
     for ($y = 0; $y < $E->screenrows; $y++) {
-        if ($y === (int)floor($E->screenrows / 3)) {
-            $welcome = sprintf("Kilo editor -- version %s", KILO_VERSION);
-            $welcomelen = strlen($welcome);
-            if ($welcomelen > $E->screencols) $welcomelen = $E->screencols;
-            $padding = (int)floor(($E->screencols - $welcomelen) / 2);
-            if ($padding) {
-              abAppend($ab, "~", 1);
-              $padding--;
+
+        if ($y >= (int)floor($E->numrows)) {
+            if ($E->numrows === 0 && $y === (int)floor($E->screenrows / 3)) {
+                $welcome = sprintf("Kilo editor -- version %s", KILO_VERSION);
+                $welcomelen = strlen($welcome);
+                if ($welcomelen > $E->screencols) $welcomelen = $E->screencols;
+                $padding = (int)floor(($E->screencols - $welcomelen) / 2);
+                if ($padding) {
+                abAppend($ab, "~", 1);
+                $padding--;
+                }
+                while ($padding--) abAppend($ab, " ", 1);
+                abAppend($ab, $welcome, $welcomelen);
+            } else {
+                abAppend($ab, "~", 1);
             }
-            while ($padding--) abAppend($ab, " ", 1);
-            abAppend($ab, $welcome, $welcomelen);
         } else {
-            abAppend($ab, "~", 1);
+            $len = $E->row->size;
+            if ($len > $E->screencols) $len = $E->screencols;
+            abAppend($ab, $E->row->chars, $len);
         }
 
         abAppend($ab, "\x1b[K", 3);
@@ -268,8 +303,13 @@ function initEditor(): void
   
 function main(): void 
 {
+    global $argc, $argv;
+
     enableRawMode();
     initEditor();
+    if ($argc >= 2) {
+        editorOpen($argv[1]);
+    }
 
     while (1) {
         editorRefreshScreen();
