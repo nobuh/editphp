@@ -181,11 +181,11 @@ function editorOpen(string $filename): void
 
     $fp = fopen($filename, 'r');
     if ($fp === false) die("fopen");
-    $line = fgets($fp);
-    if ($line === false) die("fgets");
 
-    $line = rtrim($line);
-    editorAppendRow($line, strlen($line));
+    while ($line = fgets($fp)) {
+        $line = rtrim($line);
+        editorAppendRow($line, strlen($line));
+    };
 
     fclose($fp);
 }
