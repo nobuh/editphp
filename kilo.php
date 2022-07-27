@@ -5,7 +5,9 @@ const KILO_VERSION = "0.0.0";
 class erow 
 {
     public int $size;
+    public int $rsize;
     public string $chars;
+    public string $render;
 }
 
 class editorConfig
@@ -13,6 +15,7 @@ class editorConfig
     public int $cx;
     public int $cy;
     public int $rowoff;
+    public int $coloff;
     public int $screenrows;
     public int $screencols;
     public int $numrows;
@@ -26,6 +29,7 @@ class editorConfig
         $this->cx = 0;
         $this->cy = 0;
         $this->rowoff = 0;
+        $this->coloff = 0;
         $this->screenrows = 0;
         $this->screencols = 0;
         $this->numrows = 0;
@@ -166,6 +170,26 @@ function getWindowSize(int &$rows, int &$cols): int {
     return 0;
 }
 
+function editorUpdateRow(erow $row) 
+{
+    $idx = 0;
+    for ($j = 0; $j < $row->size; $j++) {
+        if (substr($row->chars, $j, 1) === "\t") {
+            $idx++;
+            $row->render .= " ";
+            while ($idx % 8 !== 0) {
+                $idx++;
+                $row->render .= " ";
+            }
+        } else {
+            $idx++;
+            $row->render .= substr($row->chars, $j, 1);
+        }
+    }
+
+    $row->rsize = strlen($row->render);
+}
+
 function editorAppendRow(string $s, int $len): void
 {
     global $E;
@@ -174,6 +198,10 @@ function editorAppendRow(string $s, int $len): void
     $E->row[$at] = new erow();
     $E->row[$at]->size = $len;
     $E->row[$at]->chars = $s;
+    $E->row[$at]->rsize = 0;
+    $E->row[$at]->render = '';
+    editorUpdateRow($E->row[$at]);
+
     $E->numrows++;
 }
 
@@ -195,16 +223,29 @@ function editorOpen(string $filename): void
 function editorMoveCursor(int $key): void 
 {
     global $E;
+    $row = new erow;
+    if ($E->cy >= $E->numrows) {
+        $row = null;
+    } else {
+        $row = $E->row[$E->cy];
+    }
+
     switch ($key) {
       case ARROW_LEFT:
         if ($E->cx !== 0) {
             $E->cx--;
+        } else if ($E->cy > 0) {
+            $E->cy--;
+            $E->cx = $E->row[$E->cy]->size;
         }
         break;
       case ARROW_RIGHT:
-        if ($E->cx !== $E->screencols - 1) {
+        if (!is_null($row) && $E->cx < $row->size) {
             $E->cx++;
-        }
+        } else if (!is_null($row) && $E->cx === $row->size) {
+            $E->cy++;
+            $E->cx = 0;
+        }       
         break;
       case ARROW_UP:
         if ($E->cy !== 0) {
@@ -217,7 +258,21 @@ function editorMoveCursor(int $key): void
         }
         break;
     }
-  }
+
+    if ($E->cy >= $E->numrows) {
+        $row = null;
+    } else {
+        $row = $E->row[$E->cy];
+    }
+    if (!is_null($row)) {
+        $rowlen = $row->size;
+    } else {
+        $rowlen = 0;
+    }
+    if ($E->cx > $rowlen) {
+      $E->cx = $rowlen;
+    }
+}
 
 function editorProcessKeypress(): void
 {
@@ -265,6 +320,12 @@ function editorScroll(): void
     if ($E->cy >= $E->rowoff + $E->screenrows) {
         $E->rowoff = $E->cy - $E->screenrows + 1;
     }
+    if ($E->cx < $E->coloff) {
+        $E->coloff = $E->cx;
+    }
+    if ($E->cx >= $E->coloff + $E->screencols) {
+        $E->coloff = $E->cx - $E->screencols + 1;
+    }
 }
 
 function editorDrawRows(abuf $ab) 
@@ -288,9 +349,10 @@ function editorDrawRows(abuf $ab)
                 abAppend($ab, "~", 1);
             }
         } else {
-            $len = $E->row[$filerow]->size;
+            $len = $E->row[$filerow]->rsize - $E->coloff;
+            if ($len < 0) $len = 0;
             if ($len > $E->screencols) $len = $E->screencols;
-            abAppend($ab, $E->row[$filerow]->chars, $len);
+            abAppend($ab, substr($E->row[$filerow]->render, $E->coloff), $len);
         }
 
         abAppend($ab, "\x1b[K", 3);
@@ -312,7 +374,7 @@ function editorRefreshScreen(): void
     abAppend($ab, "\x1b[H", 3);
 
     editorDrawRows($ab);
-    $buf = sprintf("\x1b[%d;%dH", ($E->cy - $E->rowoff) + 1, $E->cx + 1);
+    $buf = sprintf("\x1b[%d;%dH", ($E->cy - $E->rowoff) + 1, ($E->cx - $E->coloff) + 1);
     abAppend($ab, $buf, strlen($buf));
 
     abAppend($ab, "\x1b[?25h", 6);
