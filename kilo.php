@@ -1,6 +1,6 @@
 <?php
 
-const KILO_VERSION = "0.1.0";
+const KILO_VERSION = "0.1.0 ";
 const KILO_TAB_STOP = 8;
 
 class erow 
@@ -15,6 +15,7 @@ class editorConfig
 {
     public int $cx;
     public int $cy;
+    public int $rx;
     public int $rowoff;
     public int $coloff;
     public int $screenrows;
@@ -29,6 +30,7 @@ class editorConfig
         if ($this->stdin === false) die("fopen");
         $this->cx = 0;
         $this->cy = 0;
+        $this->rx = 0;
         $this->rowoff = 0;
         $this->coloff = 0;
         $this->screenrows = 0;
@@ -169,6 +171,18 @@ function getWindowSize(int &$rows, int &$cols): int {
     $rows = $size[0];
     $cols = $size[1];
     return 0;
+}
+
+function editorRowCxToRx(erow $row, int $cx): int
+{
+    $rx = 0;
+    for ($j = 0; $j < $cx; $j++) {
+        if (substr($row->chars, $j, 1) === "\t") {
+            $rx += (KILO_TAB_STOP - 1) - ($rx % KILO_TAB_STOP);
+        } 
+        $rx++;
+    }
+    return $rx;
 }
 
 function editorUpdateRow(erow $row) 
@@ -315,6 +329,11 @@ function editorScroll(): void
 {
     global $E;
 
+    $E->rx = 0;
+    if ($E->cy < $E->numrows) {
+        $E->rx = editorRowCxToRx($E->row[$E->cy], $E->cx);
+    }
+
     if ($E->cy < $E->rowoff) {
         $E->rowoff = $E->cy;
     }
@@ -324,8 +343,8 @@ function editorScroll(): void
     if ($E->cx < $E->coloff) {
         $E->coloff = $E->cx;
     }
-    if ($E->cx >= $E->coloff + $E->screencols) {
-        $E->coloff = $E->cx - $E->screencols + 1;
+    if ($E->rx >= $E->coloff + $E->screencols) {
+        $E->coloff = $E->rx - $E->screencols + 1;
     }
 }
 
@@ -375,7 +394,7 @@ function editorRefreshScreen(): void
     abAppend($ab, "\x1b[H", 3);
 
     editorDrawRows($ab);
-    $buf = sprintf("\x1b[%d;%dH", ($E->cy - $E->rowoff) + 1, ($E->cx - $E->coloff) + 1);
+    $buf = sprintf("\x1b[%d;%dH", ($E->cy - $E->rowoff) + 1, ($E->rx - $E->coloff) + 1);
     abAppend($ab, $buf, strlen($buf));
 
     abAppend($ab, "\x1b[?25h", 6);
