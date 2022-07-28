@@ -22,6 +22,7 @@ class editorConfig
     public int $screencols;
     public int $numrows;
     public array $row;
+    public string $filename;
     public mixed $stdin;
 
     function __construct()
@@ -37,6 +38,7 @@ class editorConfig
         $this->screencols = 0;
         $this->numrows = 0;
         $this->row = [];
+        $this->filename = '';
     }
 }
 $E = new editorConfig();
@@ -226,6 +228,7 @@ function editorOpen(string $filename): void
 
     $fp = fopen($filename, 'r');
     if ($fp === false) die("fopen");
+    $E->filename = $filename;
 
     while ($line = fgets($fp)) {
         $line = rtrim($line);
@@ -385,12 +388,27 @@ function editorDrawRows(abuf $ab)
         }
 
         abAppend($ab, "\x1b[K", 3);
-        if ($y < $E->screenrows - 1) {
-            abAppend($ab, "\r\n", 2);
-        }
+        abAppend($ab, "\r\n", 2);
     }
 }
-  
+
+function editorDrawStatusBar(abuf $ab): void
+{
+    global $E;
+
+    abAppend($ab, "\x1b[7m", 4);
+
+    $status = sprintf("%.20s - %d lines", $E->filename ? $E->filename : "[No Name]", $E->numrows);
+    $len = strlen($status);
+    if ($len > $E->screencols) $len = $E->screencols;
+    abAppend($ab, $status, $len);
+    while ($len < $E->screencols) {
+        abAppend($ab, " ", 1);
+        $len++;
+    }
+    abAppend($ab, "\x1b[m", 3);
+}
+
 function editorRefreshScreen(): void
 {
     global $E;
@@ -403,6 +421,8 @@ function editorRefreshScreen(): void
     abAppend($ab, "\x1b[H", 3);
 
     editorDrawRows($ab);
+    editorDrawStatusBar($ab);
+
     $buf = sprintf("\x1b[%d;%dH", ($E->cy - $E->rowoff) + 1, ($E->rx - $E->coloff) + 1);
     abAppend($ab, $buf, strlen($buf));
 
@@ -418,8 +438,9 @@ function initEditor(): void
 {
     global $E;
     if (getWindowSize($E->screenrows, $E->screencols) == -1) die("getWindowSize");
+    $E->screenrows -= 1;
 }
-  
+
 function main(): void 
 {
     global $argc, $argv;
