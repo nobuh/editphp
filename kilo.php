@@ -1,6 +1,7 @@
 <?php
 
-const KILO_VERSION = "0.0.0";
+const KILO_VERSION = "0.1.0";
+const KILO_TAB_STOP = 8;
 
 class erow 
 {
@@ -177,7 +178,7 @@ function editorUpdateRow(erow $row)
         if (substr($row->chars, $j, 1) === "\t") {
             $idx++;
             $row->render .= " ";
-            while ($idx % 8 !== 0) {
+            while ($idx % KILO_TAB_STOP !== 0) {
                 $idx++;
                 $row->render .= " ";
             }
