@@ -400,11 +400,18 @@ function editorDrawStatusBar(abuf $ab): void
 
     $status = sprintf("%.20s - %d lines", $E->filename ? $E->filename : "[No Name]", $E->numrows);
     $len = strlen($status);
+    $rstatus = sprintf("%d/%d", $E->cy + 1, $E->numrows);
+    $rlen = strlen($rstatus);
     if ($len > $E->screencols) $len = $E->screencols;
     abAppend($ab, $status, $len);
     while ($len < $E->screencols) {
-        abAppend($ab, " ", 1);
-        $len++;
+        if ($E->screencols - $len === $rlen) {
+            abAppend($ab, $rstatus, $rlen);
+            break;
+        } else {
+            abAppend($ab, " ", 1);
+            $len++;
+        }
     }
     abAppend($ab, "\x1b[m", 3);
 }
