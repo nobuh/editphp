@@ -23,6 +23,8 @@ class editorConfig
     public int $numrows;
     public array $row;
     public string $filename;
+    public string $statusmsg;
+    public int $statusmsg_time;
     public mixed $stdin;
 
     function __construct()
@@ -39,6 +41,8 @@ class editorConfig
         $this->numrows = 0;
         $this->row = [];
         $this->filename = '';
+        $this->statusmsg = '';
+        $this->statusmsg_time = 0;
     }
 }
 $E = new editorConfig();
@@ -96,7 +100,7 @@ function enableRawMode(): void
     exec('stty -brkint -inpck -istrip');    // disable misc
     exec('stty cs8');
   
-    register_shutdown_function('disableRawMode');
+    //register_shutdown_function('disableRawMode');
 }
 
 function disableRawMode(): void
@@ -414,7 +418,20 @@ function editorDrawStatusBar(abuf $ab): void
         }
     }
     abAppend($ab, "\x1b[m", 3);
+    abAppend($ab, "\r\n", 2);
 }
+
+function editorDrawMessageBar(abuf $ab) 
+{
+    global $E;
+
+    abAppend($ab, "\x1b[K", 3);
+    $msglen = strlen($E->statusmsg);
+    if ($msglen > $E->screencols) $msglen = $E->screencols;
+    if ($msglen && time() - $E->statusmsg_time < 5)
+    abAppend($ab, $E->statusmsg, $msglen);
+  }
+
 
 function editorRefreshScreen(): void
 {
@@ -441,11 +458,19 @@ function editorRefreshScreen(): void
     abFree($ab);
 }
 
+function editorSetStatusMessage(string $fmt, ...$ap): void 
+{
+    global $E;
+    $E->statusmsg = sprintf($fmt, $ap);
+    $E->statusmsg_time = time();
+  }
+
+
 function initEditor(): void 
 {
     global $E;
     if (getWindowSize($E->screenrows, $E->screencols) == -1) die("getWindowSize");
-    $E->screenrows -= 1;
+    $E->screenrows -= 2;  // status bar & 
 }
 
 function main(): void 
@@ -457,6 +482,8 @@ function main(): void
     if ($argc >= 2) {
         editorOpen($argv[1]);
     }
+
+    editorSetStatusMessage("HELP: Ctrl-Q = quit");
 
     while (1) {
         editorRefreshScreen();
