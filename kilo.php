@@ -3,7 +3,7 @@
 const KILO_VERSION = "0.1.0 ";
 const KILO_TAB_STOP = 8;
 
-class erow 
+class erow
 {
     public int $size;
     public int $rsize;
@@ -40,8 +40,8 @@ class editorConfig
         $this->screencols = 0;
         $this->numrows = 0;
         $this->row = [];
-        $this->filename = '';
-        $this->statusmsg = '';
+        $this->filename = "";
+        $this->statusmsg = "\0";
         $this->statusmsg_time = 0;
     }
 }
@@ -62,7 +62,7 @@ class abuf
 
 function abAppend(abuf $ab, string $s, int $len)
 {
-    $ab->b .= $s;
+    $ab->b .= substr($s, 0, $len);
     $ab->len += $len;
 }
 
@@ -100,13 +100,13 @@ function enableRawMode(): void
     exec('stty -brkint -inpck -istrip');    // disable misc
     exec('stty cs8');
   
-    //register_shutdown_function('disableRawMode');
+    register_shutdown_function('disableRawMode');
 }
 
 function disableRawMode(): void
 {
-    fwrite(STDOUT, "\x1b[2J", 4);
-    fwrite(STDOUT, "\x1b[H", 3);
+    fwrite(STDOUT, "\e[2J", 4);
+    fwrite(STDOUT, "\e[H", 3);
 
     exec('stty sane');
 }
@@ -118,7 +118,8 @@ function editorReadKey(): int
     $in = array($E->stdin);
     $out = $err = null;
     $seconds = 1;
-    if (stream_select($in, $out, $err, $seconds) === false) die("Unalbe to selecton stdin\n");
+    if (stream_select($in, $out, $err, $seconds) === false) 
+        die("stream select\n");
 
     $bytes = 1;
     $c = fread($E->stdin, $bytes);
@@ -126,14 +127,17 @@ function editorReadKey(): int
 
     if (ord($c) === 0x1b) {
         $seq = [];
-        if (stream_select($in, $out, $err, $seconds) === false) die("Unalbe to selecton stdin\n");
+        if (stream_select($in, $out, $err, $seconds) === false) 
+            die("Unalbe to select on stdin\n");
         $seq[0] = fread($E->stdin, $bytes);
-        if (stream_select($in, $out, $err, $seconds) === false) die("Unalbe to selecton stdin\n");
+        if (stream_select($in, $out, $err, $seconds) === false) 
+            die("Unalbe to select on stdin\n");
         $seq[1] = fread($E->stdin, $bytes);
         if ($seq[0] === false || $seq[1] === false) return 0x1b;
         if ($seq[0] === '[') {
             if ((ord($seq[1]) >= ord('0')) && (ord($seq[1]) <= ord('9'))) {
-                if (stream_select($in, $out, $err, $seconds) === false) die("Unalbe to selecton stdin\n");
+                if (stream_select($in, $out, $err, $seconds) === false) 
+                    die("Unalbe to selecton stdin\n");
                 $seq[2] = fread($E->stdin, $bytes);
                 if ($seq[2] === '~') {
                     switch ($seq[1]) {
@@ -208,6 +212,7 @@ function editorUpdateRow(erow $row)
         }
     }
 
+    $row->render .= "\0";
     $row->rsize = strlen($row->render);
 }
 
@@ -218,9 +223,9 @@ function editorAppendRow(string $s, int $len): void
     $at = $E->numrows;
     $E->row[$at] = new erow();
     $E->row[$at]->size = $len;
-    $E->row[$at]->chars = $s;
+    $E->row[$at]->chars = $s . "\0";
     $E->row[$at]->rsize = 0;
-    $E->row[$at]->render = '';
+    $E->row[$at]->render = "";
     editorUpdateRow($E->row[$at]);
 
     $E->numrows++;
@@ -236,6 +241,7 @@ function editorOpen(string $filename): void
 
     while ($line = fgets($fp)) {
         $line = rtrim($line);
+        $line .= "\0";
         editorAppendRow($line, strlen($line));
     };
 
@@ -303,8 +309,8 @@ function editorProcessKeypress(): void
 
     switch ($c) {
         case CTRL_KEY('q'):
-            fwrite(STDOUT, "\x1b[2J", 4);
-            fwrite(STDOUT, "\x1b[H", 3);
+            fwrite(STDOUT, "\e[2J", 4);
+            fwrite(STDOUT, "\e[H", 3);
             exit(0);
             break;
         case HOME_KEY:
@@ -357,7 +363,7 @@ function editorScroll(): void
         $E->rowoff = $E->cy - $E->screenrows + 1;
     }
     if ($E->cx < $E->coloff) {
-        $E->coloff = $E->cx;
+        $E->coloff = $E->rx;
     }
     if ($E->rx >= $E->coloff + $E->screencols) {
         $E->coloff = $E->rx - $E->screencols + 1;
@@ -388,10 +394,10 @@ function editorDrawRows(abuf $ab)
             $len = $E->row[$filerow]->rsize - $E->coloff;
             if ($len < 0) $len = 0;
             if ($len > $E->screencols) $len = $E->screencols;
-            abAppend($ab, substr($E->row[$filerow]->render, $E->coloff), $len);
+            abAppend($ab, substr($E->row[$filerow]->render, $E->coloff, $len), $len);
         }
 
-        abAppend($ab, "\x1b[K", 3);
+        abAppend($ab, "\e[K", 3);
         abAppend($ab, "\r\n", 2);
     }
 }
@@ -400,7 +406,7 @@ function editorDrawStatusBar(abuf $ab): void
 {
     global $E;
 
-    abAppend($ab, "\x1b[7m", 4);
+    abAppend($ab, "\e[7m", 4);
 
     $status = sprintf("%.20s - %d lines", $E->filename ? $E->filename : "[No Name]", $E->numrows);
     $len = strlen($status);
@@ -409,7 +415,7 @@ function editorDrawStatusBar(abuf $ab): void
     if ($len > $E->screencols) $len = $E->screencols;
     abAppend($ab, $status, $len);
     while ($len < $E->screencols) {
-        if ($E->screencols - $len === $rlen) {
+        if (($E->screencols - $len) === $rlen) {
             abAppend($ab, $rstatus, $rlen);
             break;
         } else {
@@ -417,19 +423,18 @@ function editorDrawStatusBar(abuf $ab): void
             $len++;
         }
     }
-    abAppend($ab, "\x1b[m", 3);
-    abAppend($ab, "\r\n", 2);
+    abAppend($ab, "\e[m", 3);
+    //abAppend($ab, "\r\n", 2);
 }
 
 function editorDrawMessageBar(abuf $ab) 
 {
     global $E;
 
-    abAppend($ab, "\x1b[K", 3);
+    abAppend($ab, "\e[K", 3);
     $msglen = strlen($E->statusmsg);
     if ($msglen > $E->screencols) $msglen = $E->screencols;
-    if ($msglen && time() - $E->statusmsg_time < 5)
-    abAppend($ab, $E->statusmsg, $msglen);
+    if ($msglen > 0 && (time() - $E->statusmsg_time < 5)) abAppend($ab, $E->statusmsg, $msglen);
   }
 
 
@@ -441,27 +446,25 @@ function editorRefreshScreen(): void
 
     $ab = new abuf();
 
-    abAppend($ab, "\x1b[?25l", 6);
-    abAppend($ab, "\x1b[H", 3);
+    abAppend($ab, "\e[?25l", 6);
+    abAppend($ab, "\e[H", 3);
 
     editorDrawRows($ab);
     editorDrawStatusBar($ab);
+    editorDrawMessageBar($ab);
 
-    $buf = sprintf("\x1b[%d;%dH", ($E->cy - $E->rowoff) + 1, ($E->rx - $E->coloff) + 1);
+    $buf = sprintf("\e[%d;%dH", ($E->cy - $E->rowoff) + 1, ($E->rx - $E->coloff) + 1);
     abAppend($ab, $buf, strlen($buf));
 
-    abAppend($ab, "\x1b[?25h", 6);
-
-    var_dump($ab);
-
+    abAppend($ab, "\e[?25h", 6);
     fwrite(STDOUT, $ab->b, $ab->len);
     abFree($ab);
 }
 
-function editorSetStatusMessage(string $fmt, ...$ap): void 
+function editorSetStatusMessage(string $fmt): void 
 {
     global $E;
-    $E->statusmsg = sprintf($fmt, $ap);
+    $E->statusmsg = $fmt;
     $E->statusmsg_time = time();
   }
 
@@ -470,7 +473,7 @@ function initEditor(): void
 {
     global $E;
     if (getWindowSize($E->screenrows, $E->screencols) == -1) die("getWindowSize");
-    $E->screenrows -= 2;  // status bar & 
+    $E->screenrows -= 2;     
 }
 
 function main(): void 
