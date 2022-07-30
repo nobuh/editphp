@@ -424,7 +424,7 @@ function editorDrawStatusBar(abuf $ab): void
         }
     }
     abAppend($ab, "\e[m", 3);
-    //abAppend($ab, "\r\n", 2);
+    abAppend($ab, "\r\n", 2);
 }
 
 function editorDrawMessageBar(abuf $ab) 
