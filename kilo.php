@@ -22,6 +22,7 @@ class editorConfig
     public int $screencols;
     public int $numrows;
     public array $row;
+    public int $dirty;
     public string $filename;
     public string $statusmsg;
     public int $statusmsg_time;
@@ -40,6 +41,7 @@ class editorConfig
         $this->screencols = 0;
         $this->numrows = 0;
         $this->row = [];
+        $this->dirty = 0;
         $this->filename = "";
         $this->statusmsg = "\0";
         $this->statusmsg_time = 0;
@@ -230,15 +232,19 @@ function editorAppendRow(string $s, int $len): void
     editorUpdateRow($E->row[$at]);
 
     $E->numrows++;
+    $E->dirty++;
 }
 
 function editorRowInsertChar(erow $row, int $at, int $c): void 
 {
+    global $E;
+
     if ($at < 0 || $at > $row->size) $at = $row->size;
     $s = substr_replace($row->chars, chr($c), $at, 0); // 0 for inserting
     $row->chars = $s;
     $row->size++;
     editorUpdateRow($row);
+    $E->dirty++;
 }
 
 function editorInsertChar(int $c): void 
@@ -283,7 +289,9 @@ function editorOpen(string $filename): void
         editorAppendRow($line, strlen($line));
     };
 
+    $line = null;
     fclose($fp);
+    $E->dirty = 0;
 }
 
 function editorSave(): void 
@@ -298,6 +306,7 @@ function editorSave(): void
         if (fwrite($fd, $buf, $len) === $len) {
             fclose($fd);
             $buf = null;
+            $E->dirty = 0;
             editorSetStatusMessage("%d bytes written to disk", $len);
             return;
         }
@@ -484,7 +493,9 @@ function editorDrawStatusBar(abuf $ab): void
 
     abAppend($ab, "\e[7m", 4);
 
-    $status = sprintf("%.20s - %d lines", $E->filename ? $E->filename : "[No Name]", $E->numrows);
+    $status = sprintf("%.20s - %d lines %s", 
+        $E->filename ? $E->filename : "[No Name]", $E->numrows,
+        $E->dirty ? "(modified)" : "");
     $len = strlen($status);
     $rstatus = sprintf("%d/%d", $E->cy + 1, $E->numrows);
     $rlen = strlen($rstatus);
