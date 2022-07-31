@@ -76,6 +76,7 @@ function CTRL_KEY(string $k): int
     return ord($k) & 0x1f;
 }
 
+const BACKSPACE     = 127;
 const ARROW_LEFT    = 1000;
 const ARROW_RIGHT   = 1001;
 const ARROW_UP      = 1002;
@@ -118,8 +119,7 @@ function editorReadKey(): int
     $in = array($E->stdin);
     $out = $err = null;
     $seconds = 1;
-    if (stream_select($in, $out, $err, $seconds) === false) 
-        die("stream select\n");
+    if (stream_select($in, $out, $err, $seconds) === false) die("stream select\n");
 
     $bytes = 1;
     $c = fread($E->stdin, $bytes);
@@ -198,6 +198,7 @@ function editorRowCxToRx(erow $row, int $cx): int
 function editorUpdateRow(erow $row) 
 {
     $idx = 0;
+    $row->render = "";
     for ($j = 0; $j < $row->size; $j++) {
         if (substr($row->chars, $j, 1) === "\t") {
             $idx++;
@@ -229,6 +230,26 @@ function editorAppendRow(string $s, int $len): void
     editorUpdateRow($E->row[$at]);
 
     $E->numrows++;
+}
+
+function editorRowInsertChar(erow $row, int $at, int $c): void 
+{
+    if ($at < 0 || $at > $row->size) $at = $row->size;
+    $s = substr_replace($row->chars, chr($c), $at, 0); // 0 for inserting
+    $row->chars = $s;
+    $row->size++;
+    editorUpdateRow($row);
+}
+
+function editorInsertChar(int $c): void 
+{
+    global $E;
+
+    if ($E->cy === $E->numrows) {
+      editorAppendRow("", 0);
+    }
+    editorRowInsertChar($E->row[$E->cy], $E->cx, $c);
+    $E->cx++;
 }
 
 function editorOpen(string $filename): void 
@@ -307,7 +328,11 @@ function editorProcessKeypress(): void
     global $E;
     $c = editorReadKey();
 
+    if ($c === 0) return;
+
     switch ($c) {
+        case ord("\r"):
+            break;
         case CTRL_KEY('q'):
             fwrite(STDOUT, "\e[2J", 4);
             fwrite(STDOUT, "\e[H", 3);
@@ -320,6 +345,10 @@ function editorProcessKeypress(): void
             if ($E->cy < $E->numrows) {
                 $E->cx = $E->row[$E->cy]->size;
             }
+            break;
+        case BACKSPACE:
+        case CTRL_KEY('h'):
+        case DEL_KEY:
             break;
         case PAGE_UP:
         case PAGE_DOWN:
@@ -344,6 +373,13 @@ function editorProcessKeypress(): void
         case ARROW_DOWN:
         case ARROW_RIGHT:
             editorMoveCursor($c);
+            break;
+        case CTRL_KEY('l'):
+        case 0x1b:
+            break;
+        default:
+            editorInsertChar($c);
+            break;
     }
 }
 
