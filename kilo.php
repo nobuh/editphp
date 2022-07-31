@@ -253,6 +253,18 @@ function editorRowInsertChar(erow $row, int $at, int $c): void
     $E->dirty++;
 }
 
+function editorRowDelChar(erow $row, int $at): void
+{
+    global $E;
+
+    if ($at < 0 || $at >= $row->size) return;
+    $s = substr_replace($row->chars, "", $at, 0);
+    $row->chars = $s;
+    $row->size--;
+    editorUpdateRow($row);
+    $E->dirty++;
+}
+
 function editorInsertChar(int $c): void 
 {
     global $E;
@@ -262,6 +274,19 @@ function editorInsertChar(int $c): void
     }
     editorRowInsertChar($E->row[$E->cy], $E->cx, $c);
     $E->cx++;
+}
+
+function editorDelChar(): void 
+{
+    global $E;
+
+    if ($E->cy === $E->numrows) return;
+
+    $row = $E->row[$E->cy];
+    if ($E->cx > 0) {
+        editorRowDelChar($row, $E->cx - 1);
+        $E->cx--;
+    }
 }
 
 function editorRowsToString(int &$buflen): string 
@@ -275,7 +300,7 @@ function editorRowsToString(int &$buflen): string
     $buflen = $totlen;
     $buf = "";
     for ($j = 0; $j < $E->numrows; $j++) {
-      $buf .= $E->row[$j]->chars;
+      $buf .= rtrim($E->row[$j]->chars, "\0");
       $buf .= "\n";
     }
     return $buf;
@@ -410,6 +435,8 @@ function editorProcessKeypress(): void
         case BACKSPACE:
         case CTRL_KEY('h'):
         case DEL_KEY:
+            if ($c === DEL_KEY) editorMoveCursor(ARROW_RIGHT);
+            editorDelChar();
             break;
         case PAGE_UP:
         case PAGE_DOWN:
