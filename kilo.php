@@ -241,6 +241,16 @@ function editorAppendRow(string $s, int $len): void
     $E->dirty++;
 }
 
+function editorDelRow(int $at)
+{
+    global $E;
+
+    if ($at < 0 || $at >= $E->numrows) return;
+    array_splice($E->row, $at);
+    $E->numrows--;
+    $E->dirty++;
+}
+
 function editorRowInsertChar(erow $row, int $at, int $c): void 
 {
     global $E;
@@ -249,6 +259,16 @@ function editorRowInsertChar(erow $row, int $at, int $c): void
     $s = substr_replace($row->chars, chr($c), $at, 0); // 0 for inserting
     $row->chars = $s;
     $row->size++;
+    editorUpdateRow($row);
+    $E->dirty++;
+}
+
+function editorRowAppendString(erow $row, string $s, int $len): void
+{
+    global $E;
+
+    $row->chars = rtrim($row->chars, "\0") . $s . "\0";
+    $row->size += $len;
     editorUpdateRow($row);
     $E->dirty++;
 }
@@ -281,11 +301,17 @@ function editorDelChar(): void
     global $E;
 
     if ($E->cy === $E->numrows) return;
+    if ($E->cx === 0 && $E->cy === 0) return;
 
     $row = $E->row[$E->cy];
     if ($E->cx > 0) {
         editorRowDelChar($row, $E->cx - 1);
         $E->cx--;
+    } else {
+        $E->cx = $E->row[$E->cy - 1]->size;
+        editorRowAppendString($E->row[$E->cy - 1], $row->chars, $row->size);
+        editorDelRow($E->cy);
+        $E->cy--;
     }
 }
 
