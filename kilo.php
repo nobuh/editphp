@@ -1,4 +1,5 @@
 <?php
+declare(strict_types = 1);
 
 const KILO_VERSION = "0.1.0 ";
 const KILO_TAB_STOP = 8;
@@ -180,8 +181,8 @@ function getWindowSize(int &$rows, int &$cols): int {
         return -1;
     }
     $size = explode(' ', $output[0]);
-    $rows = $size[0];
-    $cols = $size[1];
+    $rows = (int)$size[0];
+    $cols = (int)$size[1];
     return 0;
 }
 
