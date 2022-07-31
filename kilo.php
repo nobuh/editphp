@@ -3,6 +3,7 @@ declare(strict_types = 1);
 
 const KILO_VERSION = "0.1.0 ";
 const KILO_TAB_STOP = 8;
+const KILO_QUIT_TIMES = 3;
 
 class erow
 {
@@ -27,12 +28,16 @@ class editorConfig
     public string $filename;
     public string $statusmsg;
     public int $statusmsg_time;
+
     public mixed $stdin;
+    public int $quit_times;
 
     function __construct()
     {
         $this->stdin = fopen('php://stdin', 'r');    
         if ($this->stdin === false) die("fopen");
+        $this->quit_times = KILO_QUIT_TIMES;
+   
         $this->cx = 0;
         $this->cy = 0;
         $this->rx = 0;
@@ -373,6 +378,7 @@ function editorMoveCursor(int $key): void
 function editorProcessKeypress(): void
 {
     global $E;
+
     $c = editorReadKey();
 
     if ($c === 0) return;
@@ -381,6 +387,11 @@ function editorProcessKeypress(): void
         case ord("\r"):
             break;
         case CTRL_KEY('q'):
+            if ($E->dirty && $E->quit_times > 0) {
+                editorSetStatusMessage("WARNING!!! File has unsaved changes. Press CTRL-Q %d more times to quit.", $E->quit_times);
+                $E->quit_times--;
+                return;
+            }
             fwrite(STDOUT, "\e[2J", 4);
             fwrite(STDOUT, "\e[H", 3);
             exit(0);
@@ -431,6 +442,8 @@ function editorProcessKeypress(): void
             editorInsertChar($c);
             break;
     }
+
+    $E->quit_times = KILO_QUIT_TIMES;
 }
 
 function editorScroll(): void 
