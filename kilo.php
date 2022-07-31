@@ -299,10 +299,11 @@ function editorSave(): void
             fclose($fd);
             $buf = null;
             editorSetStatusMessage("%d bytes written to disk", $len);
+            return;
         }
     } 
     $buf = null;
-    editorSetStatusMessage("Can't save! I/O error:");
+    editorSetStatusMessage("Can't save! I/O error: len %d");
 }
 
 function editorMoveCursor(int $key): void 
@@ -562,7 +563,7 @@ function main(): void
     }
 
     editorSetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit");
-    
+
     while (1) {
         editorRefreshScreen();
         editorProcessKeypress();
