@@ -109,7 +109,7 @@ function enableRawMode(): void
     exec('stty -brkint -inpck -istrip');    // disable misc
     exec('stty cs8');
   
-    register_shutdown_function('disableRawMode');
+    //register_shutdown_function('disableRawMode');
 }
 
 function disableRawMode(): void
@@ -225,11 +225,13 @@ function editorUpdateRow(erow $row)
     $row->rsize = strlen($row->render);
 }
 
-function editorAppendRow(string $s, int $len): void
+function editorInsertRow(int $at, string $s, int $len): void
 {
     global $E;
 
-    $at = $E->numrows;
+    if ($at < 0 || $at > $E->numrows) return;
+    array_splice($E->row, $at, 0, "");
+
     $E->row[$at] = new erow();
     $E->row[$at]->size = $len;
     $E->row[$at]->chars = $s . "\0";
@@ -246,7 +248,7 @@ function editorDelRow(int $at)
     global $E;
 
     if ($at < 0 || $at >= $E->numrows) return;
-    array_splice($E->row, $at);
+    array_splice($E->row, $at, 1);
     $E->numrows--;
     $E->dirty++;
 }
@@ -290,10 +292,27 @@ function editorInsertChar(int $c): void
     global $E;
 
     if ($E->cy === $E->numrows) {
-      editorAppendRow("", 0);
+      editorInsertRow($E->numrows, "", 0);
     }
     editorRowInsertChar($E->row[$E->cy], $E->cx, $c);
     $E->cx++;
+}
+
+function editorInsertNewLine(): void
+{
+    global $E;
+
+    if ($E->cx === 0) {
+        editorInsertRow($E->cy, "", 0);
+    } else {
+        $row = $E->row[$E->cy];
+        editorInsertRow($E->cy + 1, $row->chars[$E->cx], $row->size - $E->cx);
+        $row = $E->row[$E->cy];
+        $row->size = $E->cx;
+        editorUpdateRow($row);
+    }
+    $E->cy++;
+    $E->cx = 0;
 }
 
 function editorDelChar(): void 
@@ -343,7 +362,7 @@ function editorOpen(string $filename): void
     while ($line = fgets($fp)) {
         $line = rtrim($line);
         //$line .= "\0";
-        editorAppendRow($line, strlen($line));
+        editorInsertRow($E->numrows, $line, strlen($line));
     };
 
     $line = null;
@@ -436,6 +455,7 @@ function editorProcessKeypress(): void
 
     switch ($c) {
         case ord("\r"):
+            editorInsertNewLine();
             break;
         case CTRL_KEY('q'):
             if ($E->dirty && $E->quit_times > 0) {
