@@ -252,6 +252,23 @@ function editorInsertChar(int $c): void
     $E->cx++;
 }
 
+function editorRowsToString(int &$buflen): string 
+{
+    global $E;
+
+    $totlen = 0;
+    for ($j = 0; $j < $E->numrows; $j++) {
+        $totlen += $E->row[$j]->size + 1;   // 1 for "\n"
+    }
+    $buflen = $totlen;
+    $buf = "";
+    for ($j = 0; $j < $E->numrows; $j++) {
+      $buf .= $E->row[$j]->chars;
+      $buf .= "\n";
+    }
+    return $buf;
+}
+
 function editorOpen(string $filename): void 
 {
     global $E;
@@ -262,11 +279,30 @@ function editorOpen(string $filename): void
 
     while ($line = fgets($fp)) {
         $line = rtrim($line);
-        $line .= "\0";
+        //$line .= "\0";
         editorAppendRow($line, strlen($line));
     };
 
     fclose($fp);
+}
+
+function editorSave(): void 
+{
+    global $E;
+
+    if (is_null($E->filename)) return;
+    $len = 0;
+    $buf = editorRowsToString($len);
+    $fd = fopen($E->filename, 'w+');
+    if ($fd !== false) {
+        if (fwrite($fd, $buf, $len) === $len) {
+            fclose($fd);
+            $buf = null;
+            editorSetStatusMessage("%d bytes written to disk", $len);
+        }
+    } 
+    $buf = null;
+    editorSetStatusMessage("Can't save! I/O error:");
 }
 
 function editorMoveCursor(int $key): void 
@@ -338,6 +374,9 @@ function editorProcessKeypress(): void
             fwrite(STDOUT, "\e[H", 3);
             exit(0);
             break;
+        case CTRL_KEY('s'):
+            editorSave();
+            break;  
         case HOME_KEY:
             $E->cx = 0;
             break;
@@ -497,10 +536,10 @@ function editorRefreshScreen(): void
     abFree($ab);
 }
 
-function editorSetStatusMessage(string $fmt): void 
+function editorSetStatusMessage(string $fmt, ...$arg): void 
 {
     global $E;
-    $E->statusmsg = $fmt;
+    $E->statusmsg = sprintf($fmt, ...$arg);
     $E->statusmsg_time = time();
   }
 
@@ -522,8 +561,8 @@ function main(): void
         editorOpen($argv[1]);
     }
 
-    editorSetStatusMessage("HELP: Ctrl-Q = quit");
-
+    editorSetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit");
+    
     while (1) {
         editorRefreshScreen();
         editorProcessKeypress();
