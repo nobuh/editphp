@@ -109,7 +109,7 @@ function enableRawMode(): void
     exec('stty -brkint -inpck -istrip');    // disable misc
     exec('stty cs8');
   
-    //register_shutdown_function('disableRawMode');
+    register_shutdown_function('disableRawMode');
 }
 
 function disableRawMode(): void
