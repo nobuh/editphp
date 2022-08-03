@@ -135,12 +135,13 @@ function editorReadKey(): int
 
     if (ord($c) === 0x1b) {
         $seq = [];
-        if (stream_select($in, $out, $err, $seconds) === false) 
-            die("Unalbe to select on stdin\n");
+        if (stream_select($in, $out, $err, $seconds) === false) die("Unalbe to select on stdin\n");
         $seq[0] = fread($E->stdin, $bytes);
-        if (stream_select($in, $out, $err, $seconds) === false) 
-            die("Unalbe to select on stdin\n");
+
+        $in2nd = array($E->stdin); // For missing array error for 2nd $in
+        if (stream_select($in2nd, $out, $err, $seconds) === false) die("Unalbe to select on stdin\n");
         $seq[1] = fread($E->stdin, $bytes);
+
         if ($seq[0] === false || $seq[1] === false) return 0x1b;
         if ($seq[0] === '[') {
             if ((ord($seq[1]) >= ord('0')) && (ord($seq[1]) <= ord('9'))) {
@@ -373,8 +374,14 @@ function editorOpen(string $filename): void
 function editorSave(): void 
 {
     global $E;
-
-    if (is_null($E->filename)) return;
+    if (is_null($E->filename) || $E->filename === "") {
+        $E->filename = editorPrompt("Save as: %s (ESC to cancel)");
+        if (is_null($E->filename) || $E->filename === "") {
+            editorSetStatusMessage("Save aborted");
+            return;
+        }
+    }
+    
     $len = 0;
     $buf = editorRowsToString($len);
     $fd = fopen($E->filename, 'w+');
@@ -389,6 +396,33 @@ function editorSave(): void
     } 
     $buf = null;
     editorSetStatusMessage("Can't save! I/O error: len %d");
+}
+
+function editorPrompt(string $prompt): string 
+{
+    $bufsize = 128;
+    $buflen = 0;
+    $buf = "";
+    while (1) {
+        editorSetStatusMessage($prompt, $buf);
+        editorRefreshScreen();
+        $c = editorReadKey();
+        if ($c === DEL_KEY || $c === CTRL_KEY('h') || $c === BACKSPACE) {
+            $buf = substr($buf, 0, -1);
+        } else if ($c === 0x1b) {
+            editorSetStatusMessage("");
+            return "";
+        } else if ($c === ord("\r") || $c === ord("\n")) {
+            if ($buflen != 0) {
+                editorSetStatusMessage("");
+                return $buf;
+            }
+        } else if ( $c > 0x1f && $c < 128) { // control key is 0..0x1f
+            $buf = rtrim($buf);
+            $buf .= chr($c);
+            $buflen++;
+        }
+    }
 }
 
 function editorMoveCursor(int $key): void 
