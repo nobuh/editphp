@@ -109,7 +109,7 @@ function enableRawMode(): void
     exec('stty -brkint -inpck -istrip');    // disable misc
     exec('stty cs8');
   
-    register_shutdown_function('disableRawMode');
+    //register_shutdown_function('disableRawMode');
 }
 
 function disableRawMode(): void
@@ -202,6 +202,19 @@ function editorRowCxToRx(erow $row, int $cx): int
         $rx++;
     }
     return $rx;
+}
+
+function editorRowRxToCx(erow $row, int $rx): int 
+{
+    $cur_rx = 0;
+    for ($cx = 0; $cx < $row->size; $cx++) {
+        if (substr($row->chars, $cx, 1) === "\t") {
+            $cur_rx += (KILO_TAB_STOP - 1) - ($cur_rx % KILO_TAB_STOP);
+        }
+        $cur_rx++;
+        if ($cur_rx > $rx) return $cx;
+    }
+    return $cx;
 }
 
 function editorUpdateRow(erow $row) 
@@ -398,6 +411,27 @@ function editorSave(): void
     editorSetStatusMessage("Can't save! I/O error: len %d");
 }
 
+function editorFind(): void 
+{
+    global $E;
+
+    $query = editorPrompt("Search: %s (ESC to cancel)");
+    if ($query === "") return;
+
+    for ($i = 0; $i < $E->numrows; $i++) {
+        $row = $E->row[$i];
+        $match = strpos($row->render, $query);
+      if ($match !== false) {
+            $E->cy = $i;
+            $E->cx = editorRowRxToCx($row, $match);
+            $E->rowoff = $E->numrows;
+            break;
+        }
+    }
+    $query = null;
+}
+
+  
 function editorPrompt(string $prompt): string 
 {
     $bufsize = 128;
@@ -511,6 +545,9 @@ function editorProcessKeypress(): void
             if ($E->cy < $E->numrows) {
                 $E->cx = $E->row[$E->cy]->size;
             }
+            break;
+        case CTRL_KEY('f'):
+            editorFind();
             break;
         case BACKSPACE:
         case CTRL_KEY('h'):
@@ -694,7 +731,7 @@ function main(): void
         editorOpen($argv[1]);
     }
 
-    editorSetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit");
+    editorSetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find");
 
     while (1) {
         editorRefreshScreen();
