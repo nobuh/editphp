@@ -694,7 +694,17 @@ function editorDrawRows(abuf $ab)
             $len = $E->row[$filerow]->rsize - $E->coloff;
             if ($len < 0) $len = 0;
             if ($len > $E->screencols) $len = $E->screencols;
-            abAppend($ab, substr($E->row[$filerow]->render, $E->coloff, $len), $len);
+            //abAppend($ab, substr($E->row[$filerow]->render, $E->coloff, $len), $len);
+            $c = substr($E->row[$filerow]->render, $E->coloff, $len);
+            for ($j = 0; $j < $len; $j++) {
+                if (is_numeric(substr($c, $j, 1))) {
+                    abAppend($ab, "\e[31m", 5);
+                    abAppend($ab, substr($c, $j, 1), 1);
+                    abAppend($ab, "\e[39m", 5);
+                } else {
+                    abAppend($ab, substr($c, $j, 1), 1);
+                }
+            }
         }
 
         abAppend($ab, "\e[K", 3);
