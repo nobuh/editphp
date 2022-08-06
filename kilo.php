@@ -411,17 +411,42 @@ function editorSave(): void
     editorSetStatusMessage("Can't save! I/O error: len %d");
 }
 
+// instead of static vairable, use global 
+$last_match = -1;
+$direction = 1;
+
 function editorFindCallback(string $query, int $key): void 
 {
     global $E;
+    global $last_match;
+    global $direction;
+
     if ($key === "\r" || $key === 0x1b) {
-      return;
+        $last_match = -1;
+        $direction = 1;
+        return;
+    } else if ($key === ARROW_RIGHT || $key === ARROW_DOWN) {
+        $direction = 1;
+    } else if ($key === ARROW_LEFT || $key === ARROW_UP) {
+        $direction = -1;
+    } else {
+        $last_match = -1;
+        $direction = 1;
     }
+
+    if ($last_match === -1) $direction = 1;
+
+    $current = $last_match;
     for ($i = 0; $i < $E->numrows; $i++) {
-        $row = $E->row[$i];
+        $current += $direction;
+        if ($current === -1) $current = $E->numrows - 1;
+        else if ($current === $E->numrows) $current = 0;
+
+        $row = $E->row[$current];
         $match = strpos($row->render, $query);
         if ($match !== false) {
-            $E->cy = $i;
+            $last_match = $current;
+            $E->cy = $current;
             $E->cx = editorRowRxToCx($row, $match);
             $E->rowoff = $E->numrows;
             break;
@@ -437,7 +462,7 @@ function editorFind(): void
     $saved_coloff = $E->coloff;
     $saved_rowoff = $E->rowoff;
 
-    $query = editorPrompt("Search: %s (ESC to cancel)", "editorFindCallback");
+    $query = editorPrompt("Search: %s (Use ESC/Arrows/Enter)", "editorFindCallback");
     if ($query === "") {
         $E->cx = $saved_cx;
         $E->cy = $saved_cy;
