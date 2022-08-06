@@ -432,9 +432,19 @@ function editorFindCallback(string $query, int $key): void
 function editorFind(): void 
 {
     global $E;
+    $saved_cx = $E->cx;
+    $saved_cy = $E->cy;
+    $saved_coloff = $E->coloff;
+    $saved_rowoff = $E->rowoff;
 
     $query = editorPrompt("Search: %s (ESC to cancel)", "editorFindCallback");
-    if ($query === "") return;
+    if ($query === "") {
+        $E->cx = $saved_cx;
+        $E->cy = $saved_cy;
+        $E->colff = $saved_coloff;
+        $E->rowoff = $saved_rowoff;
+        return;
+    } 
 
     for ($i = 0; $i < $E->numrows; $i++) {
         $row = $E->row[$i];
