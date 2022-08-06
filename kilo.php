@@ -388,7 +388,7 @@ function editorSave(): void
 {
     global $E;
     if (is_null($E->filename) || $E->filename === "") {
-        $E->filename = editorPrompt("Save as: %s (ESC to cancel)");
+        $E->filename = editorPrompt("Save as: %s (ESC to cancel)", "");
         if (is_null($E->filename) || $E->filename === "") {
             editorSetStatusMessage("Save aborted");
             return;
@@ -411,11 +411,29 @@ function editorSave(): void
     editorSetStatusMessage("Can't save! I/O error: len %d");
 }
 
+function editorFindCallback(string $query, int $key): void 
+{
+    global $E;
+    if ($key === "\r" || $key === 0x1b) {
+      return;
+    }
+    for ($i = 0; $i < $E->numrows; $i++) {
+        $row = $E->row[$i];
+        $match = strpos($row->render, $query);
+        if ($match !== false) {
+            $E->cy = $i;
+            $E->cx = editorRowRxToCx($row, $match);
+            $E->rowoff = $E->numrows;
+            break;
+        }
+    }
+}
+
 function editorFind(): void 
 {
     global $E;
 
-    $query = editorPrompt("Search: %s (ESC to cancel)");
+    $query = editorPrompt("Search: %s (ESC to cancel)", "editorFindCallback");
     if ($query === "") return;
 
     for ($i = 0; $i < $E->numrows; $i++) {
@@ -432,7 +450,7 @@ function editorFind(): void
 }
 
   
-function editorPrompt(string $prompt): string 
+function editorPrompt(string $prompt, callable $callback): string 
 {
     $bufsize = 128;
     $buflen = 0;
@@ -445,10 +463,12 @@ function editorPrompt(string $prompt): string
             $buf = substr($buf, 0, -1);
         } else if ($c === 0x1b) {
             editorSetStatusMessage("");
+            if ($callback !== "") $callback($buf, $c);
             return "";
         } else if ($c === ord("\r") || $c === ord("\n")) {
             if ($buflen != 0) {
                 editorSetStatusMessage("");
+                if ($callback !== "") $callback($buf, $c);
                 return $buf;
             }
         } else if ( $c > 0x1f && $c < 128) { // control key is 0..0x1f
@@ -456,6 +476,8 @@ function editorPrompt(string $prompt): string
             $buf .= chr($c);
             $buflen++;
         }
+
+        if (!is_null($callback)) $callback($buf, $c);
     }
 }
 
