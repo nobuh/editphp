@@ -1,7 +1,7 @@
 <?php
 declare(strict_types = 1);
 
-const KILO_VERSION = "0.1.0 ";
+const KILO_VERSION = "0.0.0";
 const KILO_TAB_STOP = 8;
 const KILO_QUIT_TIMES = 3;
 
@@ -11,6 +11,7 @@ class erow
     public int $rsize;
     public string $chars;
     public string $render;
+    public array $hl;
 }
 
 class editorConfig
@@ -94,6 +95,11 @@ const HOME_KEY      = 1005;
 const END_KEY       = 1006;
 const PAGE_UP       = 1007;
 const PAGE_DOWN     = 1008;
+
+// editorHighlight
+const HL_NORMAL = 0;
+const HL_NUMBER = 1;
+const HL_MATCH  = 2;
 
 function enableRawMode(): void
 {
@@ -192,6 +198,28 @@ function getWindowSize(int &$rows, int &$cols): int {
     return 0;
 }
 
+function editorUpdateSyntax(erow $row): void
+{
+    for ($i = 0; $i < $row->rsize; $i++) {
+        $row->hl[$i] = HL_NORMAL;
+    }
+
+    for ($i = 0; $i < $row->rsize; $i++) {
+        if (is_numeric(substr($row->render, $i, 1))) {
+            $row->hl[$i] = HL_NUMBER;
+        }
+    }
+}
+
+function editorSyntaxToColor(int $hl): int
+{
+    switch ($hl) {
+        case HL_NUMBER: return 31;
+        case HL_MATCH: return 34;
+        default: return 37;
+    }
+}
+
 function editorRowCxToRx(erow $row, int $cx): int
 {
     $rx = 0;
@@ -237,6 +265,8 @@ function editorUpdateRow(erow $row)
 
     $row->render .= "\0";
     $row->rsize = strlen($row->render);
+
+    editorUpdateSyntax($row);
 }
 
 function editorInsertRow(int $at, string $s, int $len): void
@@ -251,6 +281,7 @@ function editorInsertRow(int $at, string $s, int $len): void
     $E->row[$at]->chars = $s . "\0";
     $E->row[$at]->rsize = 0;
     $E->row[$at]->render = "";
+    $E->row[$at]->hl = [];
     editorUpdateRow($E->row[$at]);
 
     $E->numrows++;
@@ -449,6 +480,10 @@ function editorFindCallback(string $query, int $key): void
             $E->cy = $current;
             $E->cx = editorRowRxToCx($row, $match);
             $E->rowoff = $E->numrows;
+
+            for ($j = 0; $j < strlen($query); $j++) {
+                $row->hl[$match + $j] = HL_MATCH;
+            }
             break;
         }
     }
@@ -696,15 +731,26 @@ function editorDrawRows(abuf $ab)
             if ($len > $E->screencols) $len = $E->screencols;
             //abAppend($ab, substr($E->row[$filerow]->render, $E->coloff, $len), $len);
             $c = substr($E->row[$filerow]->render, $E->coloff, $len);
+            $hl = $E->row[$filerow]->hl;
+            $current_color = -1;
             for ($j = 0; $j < $len; $j++) {
-                if (is_numeric(substr($c, $j, 1))) {
-                    abAppend($ab, "\e[31m", 5);
+                if ($hl[$j] === HL_NORMAL) {
+                    if ($current_color !== -1) {
+                        abAppend($ab, "\e[39m", 5);
+                        $current_color = -1;
+                    }
                     abAppend($ab, substr($c, $j, 1), 1);
-                    abAppend($ab, "\e[39m", 5);
                 } else {
+                    $color = editorSyntaxToColor($hl[$j]);
+                    if ($color !== $current_color) {
+                        $current_color = $color;
+                        $buf = sprintf("\e[%dm", $color);
+                        abAppend($ab, $buf, strlen($buf));
+                    }
                     abAppend($ab, substr($c, $j, 1), 1);
                 }
             }
+            abAppend($ab, "\e[39m", 5);
         }
 
         abAppend($ab, "\e[K", 3);
