@@ -1,5 +1,5 @@
 <?php
-declare(strict_types = 1);
+//declare(strict_types = 1);
 
 const KILO_VERSION = "0.0.0";
 const KILO_TAB_STOP = 8;
@@ -29,6 +29,7 @@ class editorConfig
     public string $filename;
     public string $statusmsg;
     public int $statusmsg_time;
+    public editorSyntax $syntax;
 
     public mixed $stdin;
     public int $quit_times;
@@ -52,6 +53,7 @@ class editorConfig
         $this->filename = "";
         $this->statusmsg = "\0";
         $this->statusmsg_time = 0;
+        $this->syntax = new editorSyntax("NULL", [], 0);
     }
 }
 $E = new editorConfig();
@@ -98,8 +100,36 @@ const PAGE_DOWN     = 1008;
 
 // editorHighlight
 const HL_NORMAL = 0;
-const HL_NUMBER = 1;
-const HL_MATCH  = 2;
+const HL_STRING = 1;
+const HL_NUMBER = 2;
+const HL_MATCH  = 3;
+
+const HL_HIGHLIGHT_NUMBERS = (1<<0);
+const HL_HIGHLIGHT_STRINGS = (1<<1);
+
+$C_HL_extensions = [".c", ".h", ".cpp", "NULL"];
+
+class editorSyntax
+{
+    public string $filetype;
+    public array $filematch;
+    public int $flags;
+
+    function __construct(string $type, array $match, int $flags)
+    {
+        $this->filetype = $type;
+        $this->filematch = $match;
+        $this->flags = $flags;
+    }
+}
+
+$HLDB[] = new editorSyntax("c", $C_HL_extensions, HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS);
+
+function HLDB_ENTRIES()
+{
+    global $HLDB;
+    return count($HLDB);
+}
 
 function enableRawMode(): void
 {
@@ -198,25 +228,101 @@ function getWindowSize(int &$rows, int &$cols): int {
     return 0;
 }
 
+function is_separator(string $c): bool
+{
+    return ctype_space($c) || $c === "\0" || str_contains(",.()+-/*=~%<>[];\"'", $c);
+}
+
 function editorUpdateSyntax(erow $row): void
 {
+    global $E;
+
     for ($i = 0; $i < $row->rsize; $i++) {
         $row->hl[$i] = HL_NORMAL;
     }
 
-    for ($i = 0; $i < $row->rsize; $i++) {
-        if (is_numeric(substr($row->render, $i, 1))) {
-            $row->hl[$i] = HL_NUMBER;
+    if ($E->syntax->filetype === "NULL") return;
+
+    $prev_sep = true;
+    $in_string = "";
+
+    $i = 0;
+    while ($i < $row->rsize) {
+        $c = substr($row->render, $i, 1);
+        $prev_hl = ($i > 0) ? $row->hl[$i - 1] : HL_NORMAL;
+
+        if ($E->syntax->flags & HL_HIGHLIGHT_STRINGS) {
+            if ($in_string) {
+                $row->hl[$i] = HL_STRING;
+                if ($c === "\\" && $i + 1 < $row->rsize) {
+                    $row->hl[$i + 1] = HL_STRING;
+                    $i += 2;
+                    continue;
+                }
+                if ($c === $in_string) $in_string = "";
+                $i++;
+                $prev_sep = true;
+                continue;
+            } else {
+                if ($c === '"' || $c === "'") {
+                    $in_string = $c;
+                    $row->hl[$i] = HL_STRING;
+                    $i++;
+                    continue;
+                }
+            }
         }
+
+        if ($E->syntax->flags & HL_HIGHLIGHT_NUMBERS) {
+            if ((ctype_digit($c) && ($prev_sep || $prev_hl === HL_NUMBER)) ||
+                ($c === "." && $prev_hl === HL_NUMBER)) {
+                $row->hl[$i] = HL_NUMBER;
+                $i++;
+                $prev_sep = false;
+                continue;
+            }
+        }
+
+        $prev_sep = is_separator($c);
+        $i++;
     }
 }
 
 function editorSyntaxToColor(int $hl): int
 {
     switch ($hl) {
+        case HL_STRING: return 35;
         case HL_NUMBER: return 31;
         case HL_MATCH: return 34;
         default: return 37;
+    }
+}
+
+function editorSelectSyntaxHighlight(): void
+{
+    global $E;
+    global $HLDB;
+
+    $E->syntax->filetype = "NULL";
+    $E->syntax->filematch = [];
+    $E->syntax->flags = 0;
+
+    if ($E->filename === "") return;
+
+    $ext = strrchr($E->filename, '.');
+
+    for ($j = 0; $j < HLDB_ENTRIES(); $j++) {
+        $s = $HLDB[$j];
+        $i = 0;
+        while (!empty($s->filematch[$i])) {
+            $is_ext = (substr($s->filematch[$i], 0, 1) === ".");
+            if (($is_ext && $ext === $s->filematch[$i]) || 
+                (!$is_ext && strstr($E->filename, $s->filematch[$i]) !== false)) {
+                $E->syntax = $s;
+                return;
+            }
+            $i++;
+        }
     }
 }
 
@@ -404,6 +510,8 @@ function editorOpen(string $filename): void
     if ($fp === false) die("fopen");
     $E->filename = $filename;
 
+    editorSelectSyntaxHighlight();
+
     while ($line = fgets($fp)) {
         $line = rtrim($line);
         //$line .= "\0";
@@ -419,11 +527,12 @@ function editorSave(): void
 {
     global $E;
     if (is_null($E->filename) || $E->filename === "") {
-        $E->filename = editorPrompt("Save as: %s (ESC to cancel)", "");
+        $E->filename = editorPrompt("Save as: %s (ESC to cancel)", "nullcall");
         if (is_null($E->filename) || $E->filename === "") {
             editorSetStatusMessage("Save aborted");
             return;
         }
+        editorSelectSyntaxHighlight();
     }
     
     $len = 0;
@@ -442,15 +551,20 @@ function editorSave(): void
     editorSetStatusMessage("Can't save! I/O error: len %d");
 }
 
-// instead of static vairable, use global 
-$last_match = -1;
-$direction = 1;
-
 function editorFindCallback(string $query, int $key): void 
 {
     global $E;
-    global $last_match;
-    global $direction;
+
+    static $last_match = -1;
+    static $direction = 1;
+
+    static $saved_hl_line;
+    static $saved_hl = [];
+
+    if (!empty($saved_hl)) {
+        $E->row[$saved_hl_line]->hl = $saved_hl;
+        $saved_hl = null;
+    }
 
     if ($key === "\r" || $key === 0x1b) {
         $last_match = -1;
@@ -481,6 +595,8 @@ function editorFindCallback(string $query, int $key): void
             $E->cx = editorRowRxToCx($row, $match);
             $E->rowoff = $E->numrows;
 
+            $saved_hl_line = $current;
+            $saved_hl = $row->hl;
             for ($j = 0; $j < strlen($query); $j++) {
                 $row->hl[$match + $j] = HL_MATCH;
             }
@@ -519,6 +635,12 @@ function editorFind(): void
     $query = null;
 }
 
+function nullcall(): void
+{
+    // do nothing
+    return;
+}
+
   
 function editorPrompt(string $prompt, callable $callback): string 
 {
@@ -533,12 +655,12 @@ function editorPrompt(string $prompt, callable $callback): string
             $buf = substr($buf, 0, -1);
         } else if ($c === 0x1b) {
             editorSetStatusMessage("");
-            if ($callback !== "") $callback($buf, $c);
+            if ($callback !== "nullcall") $callback($buf, $c);
             return "";
         } else if ($c === ord("\r") || $c === ord("\n")) {
             if ($buflen != 0) {
                 editorSetStatusMessage("");
-                if ($callback !== "") $callback($buf, $c);
+                if ($callback !== "nullcall") $callback($buf, $c);
                 return $buf;
             }
         } else if ( $c > 0x1f && $c < 128) { // control key is 0..0x1f
@@ -547,7 +669,7 @@ function editorPrompt(string $prompt, callable $callback): string
             $buflen++;
         }
 
-        if (!is_null($callback)) $callback($buf, $c);
+        if ($callback !== "nullcall") $callback($buf, $c);
     }
 }
 
@@ -768,8 +890,13 @@ function editorDrawStatusBar(abuf $ab): void
         $E->filename ? $E->filename : "[No Name]", $E->numrows,
         $E->dirty ? "(modified)" : "");
     $len = strlen($status);
-    $rstatus = sprintf("%d/%d", $E->cy + 1, $E->numrows);
+
+    $rstatus = sprintf("%s | %d/%d", 
+        $E->syntax->filetype !== "NULL" ? $E->syntax->filetype : "no ft",
+        $E->cy + 1, 
+        $E->numrows);
     $rlen = strlen($rstatus);
+
     if ($len > $E->screencols) $len = $E->screencols;
     abAppend($ab, $status, $len);
     while ($len < $E->screencols) {
