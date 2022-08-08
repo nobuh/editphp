@@ -53,7 +53,7 @@ class editorConfig
         $this->filename = "";
         $this->statusmsg = "\0";
         $this->statusmsg_time = 0;
-        $this->syntax = new editorSyntax("NULL", [], 0);
+        $this->syntax = new editorSyntax("NULL", [], "", 0);
     }
 }
 $E = new editorConfig();
@@ -99,10 +99,11 @@ const PAGE_UP       = 1007;
 const PAGE_DOWN     = 1008;
 
 // editorHighlight
-const HL_NORMAL = 0;
-const HL_STRING = 1;
-const HL_NUMBER = 2;
-const HL_MATCH  = 3;
+const HL_NORMAL     = 0;
+const HL_COMMENT    = 1;
+const HL_STRING     = 2;
+const HL_NUMBER     = 3;
+const HL_MATCH      = 4;
 
 const HL_HIGHLIGHT_NUMBERS = (1<<0);
 const HL_HIGHLIGHT_STRINGS = (1<<1);
@@ -113,17 +114,19 @@ class editorSyntax
 {
     public string $filetype;
     public array $filematch;
+    public string $singleline_comment_start;
     public int $flags;
 
-    function __construct(string $type, array $match, int $flags)
+    function __construct(string $type, array $match, string $comment, int $flags)
     {
         $this->filetype = $type;
         $this->filematch = $match;
+        $this->singleline_comment_start = $comment;
         $this->flags = $flags;
     }
 }
 
-$HLDB[] = new editorSyntax("c", $C_HL_extensions, HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS);
+$HLDB[] = new editorSyntax("c", $C_HL_extensions, "//", HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS);
 
 function HLDB_ENTRIES()
 {
@@ -145,7 +148,7 @@ function enableRawMode(): void
     exec('stty -brkint -inpck -istrip');    // disable misc
     exec('stty cs8');
   
-    //register_shutdown_function('disableRawMode');
+    register_shutdown_function('disableRawMode');
 }
 
 function disableRawMode(): void
@@ -243,6 +246,9 @@ function editorUpdateSyntax(erow $row): void
 
     if ($E->syntax->filetype === "NULL") return;
 
+    $scs = $E->syntax->singleline_comment_start;
+    $scs_len = ($scs !== "") ? strlen($scs) : 0;
+
     $prev_sep = true;
     $in_string = "";
 
@@ -250,6 +256,14 @@ function editorUpdateSyntax(erow $row): void
     while ($i < $row->rsize) {
         $c = substr($row->render, $i, 1);
         $prev_hl = ($i > 0) ? $row->hl[$i - 1] : HL_NORMAL;
+
+        if (($scs_len > 0) && ($in_string === "")) {
+            if (substr($row->render, $i, $scs_len) === $scs) {
+                for ($j = $i; $j < $row->rsize - $i; $j++)
+                    $row->hl[$j] = HL_COMMENT;
+                break;
+            }
+        }
 
         if ($E->syntax->flags & HL_HIGHLIGHT_STRINGS) {
             if ($in_string) {
@@ -291,6 +305,7 @@ function editorUpdateSyntax(erow $row): void
 function editorSyntaxToColor(int $hl): int
 {
     switch ($hl) {
+        case HL_COMMENT: return 36;
         case HL_STRING: return 35;
         case HL_NUMBER: return 31;
         case HL_MATCH: return 34;
