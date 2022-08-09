@@ -53,7 +53,7 @@ class editorConfig
         $this->filename = "";
         $this->statusmsg = "\0";
         $this->statusmsg_time = 0;
-        $this->syntax = new editorSyntax("NULL", [], "", 0);
+        $this->syntax = new editorSyntax("NULL", [], [], "", 0);
     }
 }
 $E = new editorConfig();
@@ -101,32 +101,49 @@ const PAGE_DOWN     = 1008;
 // editorHighlight
 const HL_NORMAL     = 0;
 const HL_COMMENT    = 1;
-const HL_STRING     = 2;
-const HL_NUMBER     = 3;
-const HL_MATCH      = 4;
+const HL_KEYWORD1   = 2;
+const HL_KEYWORD2   = 3;
+const HL_STRING     = 4;
+const HL_NUMBER     = 5;
+const HL_MATCH      = 6;
 
 const HL_HIGHLIGHT_NUMBERS = (1<<0);
 const HL_HIGHLIGHT_STRINGS = (1<<1);
 
 $C_HL_extensions = [".c", ".h", ".cpp", "NULL"];
 
+$C_HL_keywords = [
+    "switch", "if", "while", "for", "break", "continue", "return", "else",
+    "struct", "union", "typedef", "static", "enum", "class", "case",
+    "int|", "long|", "double|", "float|", "char|", "unsigned|", "signed|",
+    "void|", "NULL"
+];
+
 class editorSyntax
 {
     public string $filetype;
     public array $filematch;
+    public array $keywords;
     public string $singleline_comment_start;
     public int $flags;
 
-    function __construct(string $type, array $match, string $comment, int $flags)
+    function __construct(string $type, array $match, array $keywords, string $comment, int $flags)
     {
         $this->filetype = $type;
         $this->filematch = $match;
+        $this->keywords = $keywords;
         $this->singleline_comment_start = $comment;
         $this->flags = $flags;
     }
 }
 
-$HLDB[] = new editorSyntax("c", $C_HL_extensions, "//", HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS);
+$HLDB[] = new editorSyntax(
+    "c", 
+    $C_HL_extensions,
+    $C_HL_keywords, 
+    "//", 
+    HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
+);
 
 function HLDB_ENTRIES()
 {
@@ -246,6 +263,8 @@ function editorUpdateSyntax(erow $row): void
 
     if ($E->syntax->filetype === "NULL") return;
 
+    $keywords = $E->syntax->keywords;
+
     $scs = $E->syntax->singleline_comment_start;
     $scs_len = ($scs !== "") ? strlen($scs) : 0;
 
@@ -297,6 +316,26 @@ function editorUpdateSyntax(erow $row): void
             }
         }
 
+        if ($prev_sep) {
+            for ($j = 0; $keywords[$j] !== "NULL"; $j++) {
+                $klen = strlen($keywords[$j]);
+                $kw2 = (substr($keywords[$j], -1) === "|");
+                if ($kw2) $klen--;
+
+                if ((substr($row->render, $i, $klen) === $keywords[$j]) &&
+                    is_separator(substr($row->render, $i + $klen, 1))) {
+                    for ($k = $i; $k < $i + $klen; $k++) {
+                        $row->hl[$k] = $kw2 ? HL_KEYWORD2 : HL_KEYWORD1;
+                    }
+                    $i += $klen;
+                    break;
+                }
+            }
+            if ($keywords[$j] !== "NULL") {
+                $prev_sep = false;
+                continue;
+            }
+        }
         $prev_sep = is_separator($c);
         $i++;
     }
