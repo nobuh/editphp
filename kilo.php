@@ -881,6 +881,11 @@ function editorScroll(): void
     }
 }
 
+function iscntrl(string $c): bool
+{
+    return (ord($c) >= 0 && ord($c) <= 0x1f);
+}
+
 function editorDrawRows(abuf $ab) 
 {
     global $E;
@@ -905,12 +910,21 @@ function editorDrawRows(abuf $ab)
             $len = $E->row[$filerow]->rsize - $E->coloff;
             if ($len < 0) $len = 0;
             if ($len > $E->screencols) $len = $E->screencols;
-            //abAppend($ab, substr($E->row[$filerow]->render, $E->coloff, $len), $len);
             $c = substr($E->row[$filerow]->render, $E->coloff, $len);
             $hl = $E->row[$filerow]->hl;
             $current_color = -1;
-            for ($j = 0; $j < $len; $j++) {
-                if ($hl[$j] === HL_NORMAL) {
+            for ($j = 0; $j < $len - 1 ; $j++) { // $len's last is "\0"
+                if (iscntrl(substr($c, $j, 1))) {
+                    $sym = (ord(substr($c, $j, 1)) <= 0x1f) ? chr(ord('@') + ord(substr($c, $j, 1))) : '?';
+                    abAppend($ab, "\e[7m", 4);
+                    abAppend($ab, $sym, 1);
+                    abAppend($ab, "\e[m", 3);
+                    if ($current_color !== -1) {
+                        $buf = sprintf("\e[%dm", $current_color);
+                        $clen = strlen($buf);
+                        abAppend($ab, $buf, $clen);
+                    }
+                } else if ($hl[$j] === HL_NORMAL) {
                     if ($current_color !== -1) {
                         abAppend($ab, "\e[39m", 5);
                         $current_color = -1;
