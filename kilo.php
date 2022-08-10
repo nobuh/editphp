@@ -7,11 +7,13 @@ const KILO_QUIT_TIMES = 3;
 
 class erow
 {
+    public int $idx;
     public int $size;
     public int $rsize;
     public string $chars;
     public string $render;
     public array $hl;
+    public bool $hl_open_comment;
 }
 
 class editorConfig
@@ -53,7 +55,7 @@ class editorConfig
         $this->filename = "";
         $this->statusmsg = "\0";
         $this->statusmsg_time = 0;
-        $this->syntax = new editorSyntax("NULL", [], [], "", 0);
+        $this->syntax = new editorSyntax("NULL", [], [], "", "", "", 0);
     }
 }
 $E = new editorConfig();
@@ -101,11 +103,12 @@ const PAGE_DOWN     = 1008;
 // editorHighlight
 const HL_NORMAL     = 0;
 const HL_COMMENT    = 1;
-const HL_KEYWORD1   = 2;
-const HL_KEYWORD2   = 3;
-const HL_STRING     = 4;
-const HL_NUMBER     = 5;
-const HL_MATCH      = 6;
+const HL_MLCOMMENT  = 2;
+const HL_KEYWORD1   = 3;
+const HL_KEYWORD2   = 4;
+const HL_STRING     = 5;
+const HL_NUMBER     = 6;
+const HL_MATCH      = 7;
 
 const HL_HIGHLIGHT_NUMBERS = (1<<0);
 const HL_HIGHLIGHT_STRINGS = (1<<1);
@@ -119,20 +122,45 @@ $C_HL_keywords = [
     "void|", "NULL"
 ];
 
+/* PHP HighLight
+ * copied from c rules
+ * not yet completed
+ */
+
+$PHP_HL_extensions = [".php", "NULL"];
+
+$PHP_HL_keywords = [
+    "switch", "if", "while", "for", "break", "continue", "return", "else",
+    "struct", "union", "typedef", "static", "enum", "class", "case",
+    "int|", "long|", "double|", "float|", "char|", "unsigned|", "signed|",
+    "void|", "NULL"
+];
+
 class editorSyntax
 {
     public string $filetype;
     public array $filematch;
     public array $keywords;
     public string $singleline_comment_start;
+    public string $multiline_comment_start;
+    public string $multiline_comment_end;
     public int $flags;
 
-    function __construct(string $type, array $match, array $keywords, string $comment, int $flags)
+    function __construct(
+        string $type, 
+        array $match, 
+        array $keywords, 
+        string $comment,
+        string $mlstart,
+        string $mlend, 
+        int $flags)
     {
         $this->filetype = $type;
         $this->filematch = $match;
         $this->keywords = $keywords;
         $this->singleline_comment_start = $comment;
+        $this->multiline_comment_start = $mlstart;
+        $this->multiline_comment_end = $mlend;
         $this->flags = $flags;
     }
 }
@@ -141,7 +169,15 @@ $HLDB[] = new editorSyntax(
     "c", 
     $C_HL_extensions,
     $C_HL_keywords, 
-    "//", 
+    "//", "/*", "*/",
+    HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
+);
+
+$HLDB[] = new editorSyntax(
+    "php", 
+    $PHP_HL_extensions,
+    $PHP_HL_keywords, 
+    "//", "/*", "*/",
     HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
 );
 
@@ -266,21 +302,52 @@ function editorUpdateSyntax(erow $row): void
     $keywords = $E->syntax->keywords;
 
     $scs = $E->syntax->singleline_comment_start;
+    $mcs = $E->syntax->multiline_comment_start;
+    $mce = $E->syntax->multiline_comment_end;
+
     $scs_len = ($scs !== "") ? strlen($scs) : 0;
+    $mcs_len = ($mcs !== "") ? strlen($mcs) : 0;
+    $mce_len = ($mce !== "") ? strlen($mce) : 0;
 
     $prev_sep = true;
     $in_string = "";
+    $in_comment = ($row->idx > 0 && $E->row[$row->idx - 1]->hl_open_comment);
 
     $i = 0;
     while ($i < $row->rsize) {
         $c = substr($row->render, $i, 1);
         $prev_hl = ($i > 0) ? $row->hl[$i - 1] : HL_NORMAL;
 
-        if (($scs_len > 0) && ($in_string === "")) {
+        if (($scs_len > 0) && ($in_string === "") && (!$in_comment)) {
             if (substr($row->render, $i, $scs_len) === $scs) {
                 for ($j = $i; $j < $row->rsize - $i; $j++)
                     $row->hl[$j] = HL_COMMENT;
                 break;
+            }
+        }
+
+        if (($mcs_len > 0) && ($mce_len > 0) && ($in_string === "")) {
+            if ($in_comment) {
+                $row->hl[$i] = HL_MLCOMMENT;
+                if (substr($row->render, $i, $mce_len) === $mce) {
+                    for ($j = $i; $j < $mce_len; $j++) {
+                        $row->hl[$j] = HL_MLCOMMENT;
+                    }
+                    $i += $mce_len;
+                    $in_comment = false;
+                    $prev_sep = true;
+                    continue;
+                } else {
+                    $i++;
+                    continue;
+                }
+            } else if (substr($row->render, $i, $mcs_len) === $mcs) {
+                for ($j = $i; $j < $mcs_len; $j++) {
+                    $row->hl[$j] = HL_MLCOMMENT;
+                }
+                $i += $mcs_len;
+                $in_comment = true;
+                continue;
             }
         }
 
@@ -339,12 +406,19 @@ function editorUpdateSyntax(erow $row): void
         $prev_sep = is_separator($c);
         $i++;
     }
+
+    $changed = ($row->hl_open_comment !== $in_comment);
+    $row->hl_open_comment = $in_comment;
+    if ($changed && ($row->idx + 1 < $E->numrows)) {
+        editorUpdateSyntax($E->row[$row->idx + 1]);
+    }
 }
 
 function editorSyntaxToColor(int $hl): int
 {
     switch ($hl) {
-        case HL_COMMENT: return 36;
+        case HL_COMMENT:
+        case HL_MLCOMMENT: return 36;
         case HL_STRING: return 35;
         case HL_NUMBER: return 31;
         case HL_MATCH: return 34;
@@ -435,13 +509,20 @@ function editorInsertRow(int $at, string $s, int $len): void
 
     if ($at < 0 || $at > $E->numrows) return;
     array_splice($E->row, $at, 0, "");
+    for ($j = $at + 1; $j <= $E->numrows; $j++) {
+        $E->row[$j]->idx++;
+    }
 
     $E->row[$at] = new erow();
+
+    $E->row[$at]->idx = $at;
+
     $E->row[$at]->size = $len;
     $E->row[$at]->chars = $s . "\0";
     $E->row[$at]->rsize = 0;
     $E->row[$at]->render = "";
     $E->row[$at]->hl = [];
+    $E->row[$at]->hl_open_comment = false;
     editorUpdateRow($E->row[$at]);
 
     $E->numrows++;
@@ -454,6 +535,11 @@ function editorDelRow(int $at)
 
     if ($at < 0 || $at >= $E->numrows) return;
     array_splice($E->row, $at, 1);
+
+    for ($j = $at; $j <= $E->numrows - 1; $j++) {
+        $E->row[$j]->idx--;
+    }
+
     $E->numrows--;
     $E->dirty++;
 }
