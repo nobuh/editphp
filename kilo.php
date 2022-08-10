@@ -330,7 +330,7 @@ function editorUpdateSyntax(erow $row): void
             if ($in_comment) {
                 $row->hl[$i] = HL_MLCOMMENT;
                 if (substr($row->render, $i, $mce_len) === $mce) {
-                    for ($j = $i; $j < $mce_len; $j++) {
+                    for ($j = $i; $j < $i + $mce_len; $j++) {
                         $row->hl[$j] = HL_MLCOMMENT;
                     }
                     $i += $mce_len;
@@ -342,7 +342,7 @@ function editorUpdateSyntax(erow $row): void
                     continue;
                 }
             } else if (substr($row->render, $i, $mcs_len) === $mcs) {
-                for ($j = $i; $j < $mcs_len; $j++) {
+                for ($j = $i; $j < $i + $mcs_len; $j++) {
                     $row->hl[$j] = HL_MLCOMMENT;
                 }
                 $i += $mcs_len;
@@ -999,9 +999,10 @@ function editorDrawRows(abuf $ab)
             $c = substr($E->row[$filerow]->render, $E->coloff, $len);
             $hl = $E->row[$filerow]->hl;
             $current_color = -1;
-            for ($j = 0; $j < $len - 1 ; $j++) { // $len's last is "\0"
-                if (iscntrl(substr($c, $j, 1))) {
-                    $sym = (ord(substr($c, $j, 1)) <= 0x1f) ? chr(ord('@') + ord(substr($c, $j, 1))) : '?';
+            for ($j = 0; $j < $len - 1; $j++) { 
+                $c_j = substr($c, $j, 1);
+                if (iscntrl($c_j)) {
+                    $sym = (ord($c_j) <= 0x1f) ? chr(ord('@') + ord($c_j)) : '?';
                     abAppend($ab, "\e[7m", 4);
                     abAppend($ab, $sym, 1);
                     abAppend($ab, "\e[m", 3);
@@ -1015,7 +1016,7 @@ function editorDrawRows(abuf $ab)
                         abAppend($ab, "\e[39m", 5);
                         $current_color = -1;
                     }
-                    abAppend($ab, substr($c, $j, 1), 1);
+                    abAppend($ab, $c_j, 1);
                 } else {
                     $color = editorSyntaxToColor($hl[$j]);
                     if ($color !== $current_color) {
@@ -1023,7 +1024,7 @@ function editorDrawRows(abuf $ab)
                         $buf = sprintf("\e[%dm", $color);
                         abAppend($ab, $buf, strlen($buf));
                     }
-                    abAppend($ab, substr($c, $j, 1), 1);
+                    abAppend($ab, $c_j, 1);
                 }
             }
             abAppend($ab, "\e[39m", 5);
